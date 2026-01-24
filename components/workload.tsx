@@ -3,7 +3,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { useEffect, useState } from 'react'
 import Image from 'next/image'
-import { useSearchContext } from '@/components/contexts/SearchContext' // ← Add this import
+import { useSearchContext } from '@/components/contexts/SearchContext'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -17,6 +17,7 @@ interface Employee {
   department: string
   email: string
   status: 'Active' | 'On Leave' | 'Inactive'
+  level?: 'Senior' | 'Mid-Level' | 'Junior' // ← Add this field (optional for backward compatibility)
   image_url?: string
 }
 
@@ -27,7 +28,7 @@ interface WorkloadProps {
 export default function Workload({ onViewAll }: WorkloadProps) {
   const [employees, setEmployees] = useState<Employee[]>([])
   const [loading, setLoading] = useState(true)
-  const { updateSearchIndex } = useSearchContext()  // ← Add this hook
+  const { updateSearchIndex } = useSearchContext()
   
   // Show only 4 employees on dashboard
   const displayedEmployees = employees.slice(0, 4)
@@ -46,8 +47,6 @@ export default function Workload({ onViewAll }: WorkloadProps) {
       
       if (!error && data) {
         setEmployees(data)
-        
-        // ← Register data with SearchContext
         updateSearchIndex('workload', data)
       }
     } catch (error) {
@@ -55,18 +54,6 @@ export default function Workload({ onViewAll }: WorkloadProps) {
     } finally {
       setLoading(false)
     }
-  }
-
-  // Determine level based on role (you can customize this logic)
-  const getEmployeeLevel = (role: string): string => {
-    const lowerRole = role.toLowerCase()
-    if (lowerRole.includes('senior') || lowerRole.includes('lead') || lowerRole.includes('manager')) {
-      return 'Senior'
-    }
-    if (lowerRole.includes('junior') || lowerRole.includes('intern')) {
-      return 'Junior'
-    }
-    return 'Mid-Level'
   }
 
   if (loading) {
@@ -105,10 +92,7 @@ export default function Workload({ onViewAll }: WorkloadProps) {
       ) : (
         <>
           <div className="space-y-3 sm:space-y-4">
-            {displayedEmployees.map((employee) => {
-            const level = getEmployeeLevel(employee.role)
-            
-            return (
+            {displayedEmployees.map((employee) => (
               <div 
                 key={employee.id} 
                 className="flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors gap-2 sm:gap-0"
@@ -133,29 +117,32 @@ export default function Workload({ onViewAll }: WorkloadProps) {
                     <p className="text-xs sm:text-sm text-gray-600">{employee.role}</p>
                   </div>
                 </div>
-                <span className={`mt-2 sm:mt-0 px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-full text-xs sm:text-sm font-medium ${
-                  level === "Senior" 
-                    ? "bg-blue-100 text-blue-700" 
-                    : level === "Junior"
-                      ? "bg-green-100 text-green-700"
-                      : "bg-purple-100 text-purple-700"
-                }`}>
-                  {level}
-                </span>
+                
+                {/* Only show level badge if level is set in database */}
+                {employee.level && (
+                  <span className={`mt-2 sm:mt-0 px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-full text-xs sm:text-sm font-medium ${
+                    employee.level === "Senior" 
+                      ? "bg-blue-100 text-blue-700" 
+                      : employee.level === "Junior"
+                        ? "bg-green-100 text-green-700"
+                        : "bg-purple-100 text-purple-700"
+                  }`}>
+                    {employee.level}
+                  </span>
+                )}
               </div>
-            )
-          })}
-        </div>
-        
-        {/* Show count of remaining employees */}
-        {employees.length > 4 && (
-          <div className="mt-4 text-center">
-            <p className="text-sm text-gray-600">
-              Showing 4 of {employees.length} employees
-            </p>
+            ))}
           </div>
-        )}
-      </>
+        
+          {/* Show count of remaining employees */}
+          {employees.length > 4 && (
+            <div className="mt-4 text-center">
+              <p className="text-sm text-gray-600">
+                Showing 4 of {employees.length} employees
+              </p>
+            </div>
+          )}
+        </>
       )}
     </div>
   )

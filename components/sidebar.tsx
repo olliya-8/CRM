@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useRouter, usePathname } from "next/navigation"
-import { LayoutDashboard, Layers, Wallet, Calendar, Plane, Users, Folder, LogOut } from "lucide-react"
+import { LayoutDashboard, Layers, Wallet, Calendar, Plane, Users, Folder, LogOut, Menu, X } from "lucide-react"
 import Image from "next/image"
 import BGV from "@/assets/bgv.png"
 
@@ -18,68 +18,72 @@ const menuItems = [
 
 export default function Sidebar() {
   const router = useRouter()
-  const pathname = usePathname() // <- get current route automatically
+  const pathname = usePathname()
   const [isOpen, setIsOpen] = useState(false)
-  const [isLoggingOut, setIsLoggingOut] = useState(false)
 
   const handleLogout = () => {
-    setIsLoggingOut(true)
     localStorage.removeItem("user")
-    setTimeout(() => {
-      router.push("/login")
-    }, 300)
+    router.push("/login")
   }
 
   const handleNavigation = (path: string) => {
+    router.push(path)
     setIsOpen(false)
-    router.push(path) // <-- Next.js client navigation, no page reload
   }
 
   return (
     <>
-      {/* Hamburger */}
+      {/* 1. THE HAMBURGER BUTTON - High Z-Index to stay on top */}
       <button
-        className="lg:hidden fixed top-3 left-3 z-50 bg-gray-200 text-gray-800 p-2 rounded-md shadow-md"
         onClick={() => setIsOpen(!isOpen)}
+        className="fixed top-4 left-5 z-[45] lg:hidden p-2 bg-white shadow-xl rounded-2xl text-black border rounded-full border-slate-100 active:scale-90 transition-all"
       >
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d={isOpen ? "M6 18L18 6M6 6l12 12" : "M4 6h16M4 12h16M4 18h16"}
-          />
-        </svg>
+        {isOpen ? <X className="w-3 h-3" /> : <Menu className="w-4 h-4" />}
       </button>
 
-      {/* Sidebar */}
-      <div
-        className={`w-60 h-[calc(100vh-16px)] bg-white flex flex-col shadow-2xl rounded-2xl fixed top-2 left-2 bottom-2 z-40 ${
-          isOpen ? "translate-x-0" : "-translate-x-full"
-        } transition-transform duration-300 lg:translate-x-0 lg:static lg:sticky lg:top-2`}
-      >
-        {/* Logo */}
-        <div className="p-6 flex justify-start">
+      {/* 2. BACKDROP - Dim the background when menu is open */}
+      {isOpen && (
+        <div 
+          className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[45] lg:hidden"
+          onClick={() => setIsOpen(false)}
+        />
+      )}
+
+      {/* 3. SIDEBAR CONTAINER */}
+      <div className={`
+        w-64 h-[calc(100vh-16px)] bg-white flex flex-col shadow-2xl rounded-2xl fixed top-2 left-2 bottom-2 z-[50] 
+        transition-transform duration-500 cubic-bezier(0.4, 0, 0.2, 1)
+        ${isOpen ? "translate-x-0" : "-translate-x-[110%] lg:translate-x-0"} 
+        lg:static lg:sticky lg:top-2
+      `}>
+        
+        {/* Logo Section - Adjusted padding for mobile to avoid hamburger overlap */}
+        <div className="pt-20 lg:pt-6 px-4 flex justify-start">
           <button
             onClick={() => handleNavigation("/dashboard")}
-            className="w-16 h-16 rounded-2xl bg-[#EEF4FF] flex items-center justify-center shadow-lg hover:shadow-xl hover:scale-105 transition-all"
+            className="w-14 h-14 rounded-full bg-[#EEF4FF] flex items-center justify-center shadow-lg hover:shadow-xl hover:scale-105 transition-all"
           >
-            <Image src={BGV} alt="BGV Logo" className="w-10 h-10" />
+            <Image
+              src={BGV}
+              alt="BGV Logo"
+              className="w-8 h-8"
+            />
           </button>
         </div>
 
-        {/* Menu */}
-        <nav className="flex-1 px-4 space-y-2 overflow-y-auto">
+        {/* Menu Items */}
+        <nav className="flex-1 px-4 space-y-2 overflow-y-auto py-6">
           {menuItems.map((item) => {
             const Icon = item.icon
-            const isActive = pathname === item.path
+            const isActive = pathname.replace(/\/$/, "") === item.path.replace(/\/$/, "")
             return (
               <button
                 key={item.label}
                 onClick={() => handleNavigation(item.path)}
-                className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-xl text-[16px] font-medium transition-all duration-200 ${
-                  isActive ? "bg-[#EEF4FF] text-[#3F8CFF]" : "text-[#7D8592] hover:bg-[#F5F8FF]"
-                }`}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all duration-200
+                  ${isActive ? "bg-[#EEF4FF] text-[#3F8CFF]" : "text-[#7D8592] hover:bg-[#F5F8FF]"}
+                  text-sm sm:text-base lg:text-lg
+`} 
               >
                 <Icon className="w-5 h-5 shrink-0" />
                 <span>{item.label}</span>
@@ -88,13 +92,12 @@ export default function Sidebar() {
           })}
         </nav>
 
-        {/* Logout */}
+        {/* Logout Section */}
         <div className="p-4 mt-auto">
           <button
             onClick={handleLogout}
-            className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-xl text-[16px] font-medium transition-all duration-200 ${
-              isLoggingOut ? "bg-[#3F8CFF] text-white" : "text-[#7D8592] hover:bg-[#F5F8FF]"
-            }`}
+            className="w-full flex items-center gap-4 px-4 py-3.5 rounded-xl font-medium transition-all duration-200 text-[#7D8592] hover:bg-[#F5F8FF] text-sm sm:text-base lg:text-lg
+"
           >
             <LogOut className="w-5 h-5" />
             <span>Logout</span>

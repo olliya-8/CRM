@@ -4,8 +4,6 @@ import { createClient } from '@supabase/supabase-js'
 import { useEffect, useState } from 'react'
 import toast, { Toaster } from 'react-hot-toast'
 
-
-
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -121,11 +119,10 @@ export default function VacationsPage() {
 
   return (
     <div className="flex-1 h-screen overflow-y-auto bg-gray-50">
-     
       <div className="flex-1 flex flex-col">
-       
         <main className="p-4 sm:p-6 md:p-8 overflow-auto">
           <Toaster position="top-right" />
+          
           {/* Page Header */}
           <div className="mb-6 sm:mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
@@ -147,67 +144,6 @@ export default function VacationsPage() {
             <StatusCard title="Approved" color="green" vacations={getVacationsByStatus('approved')} onClick={() => setSelectedStatus('approved')} onVacationClick={openDetailsModal} />
             <StatusCard title="Pending" color="yellow" vacations={getVacationsByStatus('pending')} onClick={() => setSelectedStatus('pending')} onVacationClick={openDetailsModal} />
             <StatusCard title="Rejected" color="red" vacations={getVacationsByStatus('rejected')} onClick={() => setSelectedStatus('rejected')} onVacationClick={openDetailsModal} />
-          </div>
-
-          {/* Mobile Cards */}
-          <div className="block lg:hidden space-y-4">
-            {vacations.map(v => (
-              <div key={v.id} className="bg-white p-4 rounded-lg border border-slate-200 hover:shadow-md transition-shadow">
-                <h3 className="text-base font-semibold text-slate-900 mb-1">{v.user_id}</h3>
-                <p className="text-sm text-slate-600 mb-1">{v.reason}</p>
-                <p className="text-sm text-slate-500 mb-1">{formatDate(v.start_date)} - {formatDate(v.end_date)}</p>
-                <p className={`inline-block text-xs font-semibold px-2 py-1 rounded-full ${
-                  v.status === 'approved' ? 'bg-green-100 text-green-700' :
-                  v.status === 'rejected' ? 'bg-red-100 text-red-700' :
-                  'bg-yellow-100 text-yellow-700'
-                }`}>{v.status.charAt(0).toUpperCase() + v.status.slice(1)}</p>
-                <div className="flex gap-2 mt-3 pt-3 border-t">
-                  <button onClick={() => openEditModal(v)} className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded text-sm font-medium">✏️ Edit</button>
-                  <button onClick={() => handleDelete(v.id)} className="flex-1 bg-red-100 hover:bg-red-200 text-red-700 px-3 py-2 rounded text-sm font-medium">🗑️ Delete</button>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Desktop Table */}
-          <div className="hidden lg:block bg-white rounded-lg overflow-hidden border border-slate-200">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-slate-50 border-b border-slate-200">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-slate-900">Employee ID</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-slate-900">Reason</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-slate-900">Start Date</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-slate-900">End Date</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-slate-900">Days</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-slate-900">Status</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-slate-900">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200">
-                  {vacations.map(v => (
-                    <tr key={v.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-4 py-4 text-sm text-slate-900">{v.user_id}</td>
-                      <td className="px-4 py-4 text-sm text-slate-600">{v.reason}</td>
-                      <td className="px-4 py-4 text-sm text-slate-600">{formatDate(v.start_date)}</td>
-                      <td className="px-4 py-4 text-sm text-slate-600">{formatDate(v.end_date)}</td>
-                      <td className="px-4 py-4 text-sm text-blue-600 font-bold">{calculateDays(v.start_date, v.end_date)}</td>
-                      <td className="px-4 py-4">
-                        <span className={`text-xs font-semibold px-3 py-1 rounded-full ${
-                          v.status === 'approved' ? 'bg-green-100 text-green-700' :
-                          v.status === 'rejected' ? 'bg-red-100 text-red-700' :
-                          'bg-yellow-100 text-yellow-700'
-                        }`}>{v.status.charAt(0).toUpperCase() + v.status.slice(1)}</span>
-                      </td>
-                      <td className="px-4 py-4 flex gap-2">
-                        <button onClick={() => openEditModal(v)} className="text-blue-600 hover:text-blue-800 text-sm font-medium">✏️</button>
-                        <button onClick={() => handleDelete(v.id)} className="text-red-600 hover:text-red-800 text-sm font-medium">🗑️</button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
           </div>
 
           {/* Add / Edit Modals */}
@@ -270,7 +206,6 @@ const StatusCard = ({ title, color, vacations, onClick, onVacationClick }: Statu
         </div>
       </div>
       
-      {/* Preview items - always visible */}
       <div className="space-y-2">
         {vacations.slice(0, 3).map(v => (
           <div 
@@ -289,9 +224,8 @@ const StatusCard = ({ title, color, vacations, onClick, onVacationClick }: Statu
         {vacations.length > 3 && <div className={`text-xs font-medium ${c.text}`}>+{vacations.length - 3} more</div>}
       </div>
 
-      {/* Expanded view on hover - shows all items */}
       {isHovered && vacations.length > 3 && (
-        <div className={`absolute left-0 right-0 top-full mt-2 bg-white rounded-lg border-2 ${c.border} p-4 shadow-xl z-50 max-h-96`}>
+        <div className={`absolute left-0 right-0 top-full mt-2 bg-white rounded-lg border-2 ${c.border} p-4 shadow-xl z-50 max-h-96 overflow-y-auto`}>
           <h4 className={`font-bold ${c.text} mb-3`}>All {title} Vacations</h4>
           <div className="space-y-2">
             {vacations.map(v => (
@@ -329,17 +263,17 @@ const VacationFormModal = ({ title, onClose, onSubmit, formData, setFormData }: 
     <div className="bg-white rounded-xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto p-6">
       <h2 className="text-2xl font-bold text-slate-900 mb-4">{title}</h2>
       <form onSubmit={onSubmit} className="space-y-4">
-        <input type="text" placeholder="Employee ID" value={formData.user_id} onChange={e => setFormData({...formData, user_id: e.target.value})} className="w-full px-4 py-2 border rounded-lg" required />
-        <input type="date" value={formData.start_date} onChange={e => setFormData({...formData, start_date: e.target.value})} className="w-full px-4 py-2 border rounded-lg" required />
-        <input type="date" value={formData.end_date} onChange={e => setFormData({...formData, end_date: e.target.value})} className="w-full px-4 py-2 border rounded-lg" required />
-        <input type="text" placeholder="Reason" value={formData.reason} onChange={e => setFormData({...formData, reason: e.target.value})} className="w-full px-4 py-2 border rounded-lg" required />
-        <select value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})} className="w-full px-4 py-2 border rounded-lg">
+        <input type="text" placeholder="Employee ID" value={formData.user_id} onChange={e => setFormData({...formData, user_id: e.target.value})} className="w-full px-4 py-2 border rounded-lg text-slate-900" required />
+        <input type="date" value={formData.start_date} onChange={e => setFormData({...formData, start_date: e.target.value})} className="w-full px-4 py-2 border rounded-lg text-slate-900" required />
+        <input type="date" value={formData.end_date} onChange={e => setFormData({...formData, end_date: e.target.value})} className="w-full px-4 py-2 border rounded-lg text-slate-900" required />
+        <input type="text" placeholder="Reason" value={formData.reason} onChange={e => setFormData({...formData, reason: e.target.value})} className="w-full px-4 py-2 border rounded-lg text-slate-900" required />
+        <select value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})} className="w-full px-4 py-2 border rounded-lg text-slate-900">
           <option value="pending">Pending</option>
           <option value="approved">Approved</option>
           <option value="rejected">Rejected</option>
         </select>
         <div className="flex gap-3 pt-4">
-          <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg">Cancel</button>
+          <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg text-slate-700">Cancel</button>
           <button type="submit" className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg">{title.includes('Add') ? 'Add' : 'Update'}</button>
         </div>
       </form>
@@ -372,13 +306,11 @@ const VacationDetailsModal = ({ vacation, onClose, onEdit, onDelete }: VacationD
         </div>
 
         <div className="space-y-4">
-          {/* Employee ID */}
           <div className="bg-slate-50 rounded-lg p-4">
             <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Employee ID</label>
             <p className="text-lg font-bold text-slate-900 mt-1">{vacation.user_id}</p>
           </div>
 
-          {/* Status Badge */}
           <div className="flex items-center gap-3">
             <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Status</label>
             <span className={`${colors.bg} ${colors.text} px-4 py-2 rounded-full text-sm font-semibold border ${colors.border}`}>
@@ -386,7 +318,6 @@ const VacationDetailsModal = ({ vacation, onClose, onEdit, onDelete }: VacationD
             </span>
           </div>
 
-          {/* Date Range */}
           <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
             <label className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-2 block">Vacation Period</label>
             <div className="flex items-center justify-between">
@@ -396,7 +327,7 @@ const VacationDetailsModal = ({ vacation, onClose, onEdit, onDelete }: VacationD
               </div>
               <div className="text-slate-400">→</div>
               <div>
-                <p className="text-xs text-red">End Date</p>
+                <p className="text-xs text-slate-500">End Date</p>
                 <p className="text-base font-semibold text-slate-900">{formatDate(vacation.end_date)}</p>
               </div>
             </div>
@@ -407,14 +338,12 @@ const VacationDetailsModal = ({ vacation, onClose, onEdit, onDelete }: VacationD
             </div>
           </div>
 
-          {/* Reason */}
           <div className="bg-slate-50 rounded-lg p-4">
             <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Reason</label>
             <p className="text-base text-slate-900 mt-1 leading-relaxed">{vacation.reason}</p>
           </div>
         </div>
 
-        {/* Action Buttons */}
         <div className="flex gap-3 mt-6 pt-6 border-t">
           <button 
             onClick={() => onEdit(vacation)}

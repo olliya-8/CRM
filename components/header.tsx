@@ -3,73 +3,51 @@
 import { useEffect, useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-
 import { useUser } from "@/components/user-context"
 import { useSearchContext } from "@/components/contexts/SearchContext"
 import { supabase } from "@/lib/supabase"
-
-import { Settings, LogOut, ChevronDown } from "lucide-react"
+import { Settings, LogOut, ChevronDown, Search, X } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
-export default function Header({
-  onLogout,
-  onMenuClick,
-}: {
-  onLogout?: () => void
-  onMenuClick?: () => void
-}) {
+export default function Header({ onLogout }: { onLogout?: () => void }) {
   const [searchQuery, setSearchQuery] = useState("")
-  const [searchResults, setSearchResults] = useState<any[]>([])
+  const [searchResults, setSearchResults] = useState([])
   const [showSearchResults, setShowSearchResults] = useState(false)
   const [showUserMenu, setShowUserMenu] = useState(false)
-  const [userImageUrl, setUserImageUrl] = useState<string>("")
-
-  const searchRef = useRef<HTMLDivElement>(null)
-  const userMenuRef = useRef<HTMLDivElement>(null)
-
+  const [userImageUrl, setUserImageUrl] = useState("")
+  const [employeeName, setEmployeeName] = useState("")
+  const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false)
+  
+  const searchRef = useRef(null)
+  const userMenuRef = useRef(null)
   const router = useRouter()
   const { searchIndex } = useSearchContext()
   const { logout, user } = useUser()
 
-  // Close dropdowns on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node))
         setShowSearchResults(false)
-      }
-      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node))
         setShowUserMenu(false)
-      }
     }
-
     document.addEventListener("mousedown", handler)
     return () => document.removeEventListener("mousedown", handler)
   }, [])
 
-  // Fetch user image from employees table
   useEffect(() => {
-    const fetchUserImage = async () => {
+    const fetchUserData = async () => {
       if (!user?.email) return
-
-      try {
-        const { data, error } = await supabase
-          .from('employees')
-          .select('image_url')
-          .eq('email', user.email)
-          .single()
-
-        if (data && !error) {
-          setUserImageUrl(data.image_url || "")
-        }
-      } catch (err) {
-        console.error("Error fetching user image:", err)
+      const { data } = await supabase.from('employees').select('name, image_url').eq('email', user.email).single()
+      if (data) {
+        setUserImageUrl(data.image_url || "")
+        setEmployeeName(data.name || "")
       }
     }
-
-    fetchUserImage()
+    fetchUserData()
   }, [user?.email])
 
-  // Search logic
+  // Search Logic
   useEffect(() => {
     if (searchQuery.trim().length < 2) {
       setSearchResults([])
@@ -82,15 +60,32 @@ export default function Header({
 
     Object.entries(searchIndex).forEach(([category, items]) => {
       if (!Array.isArray(items)) return
-
       items.forEach((item: any) => {
         const text = Object.values(item).join(" ").toLowerCase()
         if (text.includes(q)) {
+          let path = item.path || item.href
+          
+          if (!path) {
+            const categoryPageMap: { [key: string]: string } = {
+              'navigation': '/dashboard',
+              'employees': '/employees-page',
+              'projects': '/projects-page',
+              'finances': '/finances-page',
+              'vacations': '/vacations-page',
+              'infoPortal': '/info-portal-page',
+              'activities': '/dashboard',
+              'documents': '/info-portal-page',
+              'announcements': '/info-portal-page',
+              'conversations': '/dashboard'
+            }
+            path = categoryPageMap[category] || '/dashboard'
+          }
+          
           results.push({
             ...item,
             category,
-            title: item.name || item.title || "Result",
-            subtitle: item.subtitle || item.role || item.description || "",
+            title: item.title || item.name || "Result",
+            path
           })
         }
       })
@@ -100,137 +95,187 @@ export default function Header({
     setShowSearchResults(results.length > 0)
   }, [searchQuery, searchIndex])
 
-  // Navigate to result
-  const handleResultClick = (result: any) => {
-    setShowSearchResults(false)
-    setSearchQuery("")
-
-    // Navigate based on category
-    const categoryRoutes: Record<string, string> = {
-      navigation: result.path || "/dashboard",
-      employees: "/employees-page",
-      projects: "/projects-page",
-      finances: "/finances-page",
-      vacations: "/vacations-page",
-      calendar: "/calendar-page",
-      infoPortal: "/info-portal-page",
-      activities: "/dashboard",
-      workload: "/dashboard",
-      events: "/calendar-page",
-    }
-
-    const route = categoryRoutes[result.category] || "/dashboard"
-    router.push(route)
-  }
-
-  // Format category name for display
-  const formatCategory = (category: string) => {
-    const categoryLabels: Record<string, string> = {
-      navigation: "Navigation",
-      employees: "Employees",
-      projects: "Projects",
-      finances: "Finances",
-      vacations: "Vacations",
-      calendar: "Calendar",
-      infoPortal: "Info Portal",
-      activities: "Activities",
-      workload: "Workload",
-      events: "Events",
-    }
-    return categoryLabels[category] || category
-  }
-
-  const handleLogout = () => {
-    setShowUserMenu(false)
-    if (onLogout) onLogout()
-    else {
-      logout()
-      router.push("/login")
+  const handleSearchResultClick = (path: string) => {
+    if (path && path !== '#' && path !== '') {
+      router.push(path)
+      setSearchQuery("")
+      setShowSearchResults(false)
+      setIsMobileSearchOpen(false)
     }
   }
 
   return (
-    <header className="bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between gap-4">
-      {/* SEARCH */}
-      <div className="flex-1 max-w-md relative" ref={searchRef}>
-        <input
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Search..."
-          className="w-full px-4 py-2 rounded-lg border bg-slate-50"
-        />
-
-        {showSearchResults && (
-          <div className="absolute mt-2 w-full bg-white border rounded-lg shadow-lg max-h-96 overflow-y-auto z-50">
-            {searchResults.map((r, i) => (
-              <div
-                key={i}
-                onClick={() => handleResultClick(r)}
-                className="p-3 hover:bg-slate-50 cursor-pointer border-b last:border-b-0"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm truncate">{r.title}</p>
-                    {r.subtitle && (
-                      <p className="text-xs text-slate-500 truncate">{r.subtitle}</p>
-                    )}
-                  </div>
-                  <span className="text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded-full whitespace-nowrap">
-                    {formatCategory(r.category)}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* USER MENU */}
-      <div className="relative" ref={userMenuRef}>
-        <button
-          onClick={() => setShowUserMenu((v) => !v)}
-          className="flex items-center gap-3 px-3 py-2 rounded-full hover:bg-slate-50 transition-colors"
-        >
-          <Avatar className="h-9 w-9 flex-shrink-0">
-            <AvatarImage src={userImageUrl} />
-            <AvatarFallback>{user?.name?.[0] || "U"}</AvatarFallback>
-          </Avatar>
+    <>
+      {/* Main Header */}
+      <header className="sticky top-0 z-40 w-full border-b border-slate-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80">
+        <div className="flex h-16 items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
           
-          <span className="text-sm font-medium text-slate-700 max-w-[200px] truncate">
-            {user?.name || "User"}
-          </span>
+          {/* Center Section - Search Bar - LG SCREENS ONLY */}
+          <div className="hidden flex-1 justify-center lg:flex" ref={searchRef}>
+            <div className="relative w-full max-w-md">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search anything..."
+                className="h-10 w-full rounded-lg border border-slate-200 bg-slate-50/50 pl-10 pr-4 text-sm transition-all placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100"
+              />
 
-          <ChevronDown
-            className={`h-4 w-4 transition flex-shrink-0 ${showUserMenu ? "rotate-180" : ""}`}
-          />
-        </button>
-
-        {showUserMenu && (
-          <div className="absolute right-0 mt-3 min-w-[280px] max-w-sm bg-white border rounded-xl shadow-xl z-50">
-            <div className="p-4 border-b">
-              <p className="text-sm font-bold break-words">{user?.name || "User"}</p>
-              <p className="text-xs text-slate-500 break-words mt-1">{user?.email}</p>
+              {/* Search Results Dropdown - LG SCREENS */}
+              {showSearchResults && searchResults.length > 0 && (
+                <div className="absolute left-0 right-0 top-full z-50 mt-2 max-h-96 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-xl">
+                  {searchResults.map((r, i) => (
+                    <button
+                      key={i}
+                      onClick={() => handleSearchResultClick(r.path)}
+                      className="flex w-full items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 text-left transition-colors last:border-0 hover:bg-slate-50"
+                    >
+                      <span className="truncate font-medium text-slate-900">{r.title}</span>
+                      <span className="shrink-0 rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-600">
+                        {r.category}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
-
-            <Link
-              href="/account/settings"
-              onClick={() => setShowUserMenu(false)}
-              className="flex gap-3 px-4 py-3 hover:bg-slate-50 items-center"
-            >
-              <Settings className="h-4 w-4 flex-shrink-0" />
-              <span>Settings</span>
-            </Link>
-
-            <button
-              onClick={handleLogout}
-              className="w-full flex gap-3 px-4 py-3 text-red-600 hover:bg-red-50 items-center"
-            >
-              <LogOut className="h-4 w-4 flex-shrink-0" />
-              <span>Sign out</span>
-            </button>
           </div>
-        )}
-      </div>
-    </header>
+
+          {/* Right Section - Search Icon (SM/MD) + User Menu */}
+          <div className="flex items-center gap-2 ml-auto lg:ml-0">
+            {/* Search Icon - SM/MD SCREENS ONLY */}
+            <button
+              onClick={() => setIsMobileSearchOpen(true)}
+              className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-600 transition-all hover:bg-slate-100 active:scale-95 lg:hidden"
+              aria-label="Open search"
+            >
+              <Search className="h-5 w-5" />
+            </button>
+
+            {/* User Menu */}
+            <div className="relative" ref={userMenuRef}>
+              <button
+                onClick={() => setShowUserMenu(!showUserMenu)}
+                className="flex items-center gap-2 rounded-lg p-1.5 transition-all hover:bg-slate-100 active:scale-95 sm:gap-2.5 sm:pr-3"
+                aria-label="User menu"
+              >
+                <Avatar className="h-8 w-8 ring-2 ring-slate-100">
+                  <AvatarImage src={userImageUrl} alt={employeeName} />
+                  <AvatarFallback className="bg-gradient-to-br from-blue-500 to-blue-600 text-xs font-semibold text-white">
+                    {employeeName?.[0]?.toUpperCase() || "U"}
+                  </AvatarFallback>
+                </Avatar>
+                <span className="hidden text-sm font-medium text-slate-700 sm:inline-block">
+                  {employeeName || "User"}
+                </span>
+                <ChevronDown className="hidden h-4 w-4 text-slate-400 sm:block" />
+              </button>
+
+              {/* User Menu Dropdown */}
+              {showUserMenu && (
+                <div className="absolute right-0 top-full z-50 mt-2 w-64 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xl">
+                  <div className="border-b border-slate-100 bg-slate-50 px-4 py-3">
+                    <p className="truncate font-semibold text-slate-900">{employeeName}</p>
+                    <p className="truncate text-xs text-slate-500">{user?.email}</p>
+                    <span className="mt-1 inline-block rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
+                      Account
+                    </span>
+                  </div>
+                  <div className="p-1">
+                    <Link
+                      href="account/settings"
+                      className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-slate-50"
+                    >
+                      <Settings className="h-4 w-4" />
+                      Settings
+                    </Link>
+                    <button
+                      onClick={() => {
+                        logout()
+                        onLogout?.()
+                      }}
+                      className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm text-red-600 transition-colors hover:bg-red-50"
+                    >
+                      <LogOut className="h-4 w-4" />
+                      Sign out
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Mobile Search Overlay - SM/MD SCREENS ONLY */}
+      {isMobileSearchOpen && (
+        <div className="fixed inset-0 z-50 bg-white lg:hidden">
+          {/* Mobile Search Header */}
+          <div className="border-b border-slate-200 bg-white px-4 py-3">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => {
+                  setIsMobileSearchOpen(false)
+                  setSearchQuery("")
+                  setShowSearchResults(false)
+                }}
+                className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-600 transition-all hover:bg-slate-100 active:scale-95"
+                aria-label="Close search"
+              >
+                <X className="h-5 w-5" />
+              </button>
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  autoFocus
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search anything..."
+                  className="h-10 w-full rounded-lg border border-slate-200 bg-slate-50/50 pl-10 pr-4 text-sm transition-all placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Mobile Search Results */}
+          <div className="overflow-y-auto" style={{ height: 'calc(100vh - 73px)' }}>
+            {searchQuery.trim().length >= 2 && searchResults.length > 0 ? (
+              <div className="divide-y divide-slate-100">
+                {searchResults.map((r, i) => (
+                  <button
+                    key={i}
+                    onClick={() => handleSearchResultClick(r.path)}
+                    className="flex w-full items-center justify-between gap-3 px-4 py-3.5 text-left transition-colors active:bg-slate-50"
+                  >
+                    <span className="truncate font-medium text-slate-900">{r.title}</span>
+                    <span className="shrink-0 rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-600">
+                      {r.category}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            ) : searchQuery.trim().length >= 2 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <div className="rounded-full bg-slate-100 p-3">
+                  <Search className="h-6 w-6 text-slate-400" />
+                </div>
+                <p className="mt-4 font-medium text-slate-900">No results found</p>
+                <p className="mt-1 text-sm text-slate-500">Try a different search term</p>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <div className="rounded-full bg-slate-100 p-3">
+                  <Search className="h-6 w-6 text-slate-400" />
+                </div>
+                <p className="mt-4 font-medium text-slate-900">Start typing to search</p>
+                <p className="mt-1 text-sm text-slate-500">Search employees, projects, and more</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </>
   )
 }
