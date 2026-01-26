@@ -109,7 +109,7 @@ export default function SettingsPage() {
       toast.success("Profile updated!", { id: toastId })
       await loadProfileFromEmployees()
       await refreshUser()
-      setActiveView("menu") // Hide form after success
+      setActiveView("menu")
     } catch (err: any) {
       console.error(err)
       toast.error(err.message || "Update failed", { id: toastId })
@@ -130,7 +130,7 @@ export default function SettingsPage() {
       setNewPassword("")
       setConfirmPassword("")
       toast.success("Password updated!", { id: toastId })
-      setActiveView("menu") // Hide form after success
+      setActiveView("menu")
     } catch (err: any) {
       console.error(err)
       toast.error(err.message || "Password update failed", { id: toastId })
@@ -156,7 +156,7 @@ export default function SettingsPage() {
         <div className="w-12 h-1 bg-blue-500 mx-auto rounded-full" />
       </div>
 
-      {/* VIEW 1: SELECTION MENU (Hidden when form is open) */}
+      {/* VIEW 1: SELECTION MENU */}
       {activeView === "menu" && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
           <button 
@@ -232,9 +232,9 @@ export default function SettingsPage() {
             </div>
           </CardContent>
           
-          <CardFooter className="p-8 bg-slate-50/50 flex justify-end gap-3 border-t border-slate-100">
-            <Button variant="outline" onClick={() => setActiveView("menu")} className="h-12 px-8 rounded-xl font-semibold border-slate-200">Cancel</Button>
-            <Button onClick={handleSaveProfile} disabled={loading || uploadingImage} className="h-12 px-8 rounded-xl font-semibold bg-blue-600 hover:bg-blue-700 shadow-md shadow-blue-100 transition-all">
+          <CardFooter className="p-4 sm:p-8 bg-slate-50/50 flex flex-col sm:flex-row justify-end gap-3 border-t border-slate-100">
+            <Button variant="outline" onClick={() => setActiveView("menu")} className="w-full sm:w-auto h-12 px-8 rounded-xl font-semibold border-slate-200">Cancel</Button>
+            <Button onClick={handleSaveProfile} disabled={loading || uploadingImage} className="w-full sm:w-auto h-12 px-8 rounded-xl font-semibold bg-blue-600 hover:bg-blue-700 shadow-md shadow-blue-100 transition-all">
               {loading ? "Saving..." : "Save Changes"}
             </Button>
           </CardFooter>
@@ -284,9 +284,9 @@ export default function SettingsPage() {
             </div>
           </CardContent>
 
-          <CardFooter className="p-8 bg-slate-50/50 flex justify-end gap-3 border-t border-slate-100">
-            <Button variant="outline" onClick={() => setActiveView("menu")} className="h-12 px-8 rounded-xl font-semibold border-slate-200">Cancel</Button>
-            <Button onClick={handleSavePassword} disabled={loading} className="h-12 px-8 rounded-xl font-semibold bg-slate-900 hover:bg-black transition-all">
+          <CardFooter className="p-4 sm:p-8 bg-slate-50/50 flex flex-col sm:flex-row justify-end gap-3 border-t border-slate-100">
+            <Button variant="outline" onClick={() => setActiveView("menu")} className="w-full sm:w-auto h-12 px-8 rounded-xl font-semibold border-slate-200">Cancel</Button>
+            <Button onClick={handleSavePassword} disabled={loading} className="w-full sm:w-auto h-12 px-8 rounded-xl font-semibold bg-slate-900 hover:bg-black transition-all">
               {loading ? "Updating..." : "Update Password"}
             </Button>
           </CardFooter>

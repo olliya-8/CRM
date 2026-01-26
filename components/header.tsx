@@ -8,6 +8,7 @@ import { useSearchContext } from "@/components/contexts/SearchContext"
 import { supabase } from "@/lib/supabase"
 import { Settings, LogOut, ChevronDown, Search, X } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import NotificationBell from "@/components/notification-bell"
 
 export default function Header({ onLogout }: { onLogout?: () => void }) {
   const [searchQuery, setSearchQuery] = useState("")
@@ -142,7 +143,7 @@ export default function Header({ onLogout }: { onLogout?: () => void }) {
             </div>
           </div>
 
-          {/* Right Section - Search Icon (SM/MD) + User Menu */}
+          {/* Right Section - Search Icon (SM/MD) + Notification Bell + User Menu */}
           <div className="flex items-center gap-2 ml-auto lg:ml-0">
             {/* Search Icon - SM/MD SCREENS ONLY */}
             <button
@@ -152,6 +153,9 @@ export default function Header({ onLogout }: { onLogout?: () => void }) {
             >
               <Search className="h-5 w-5" />
             </button>
+
+            {/* 🔔 Notification Bell */}
+            <NotificationBell />
 
             {/* User Menu */}
             <div className="relative" ref={userMenuRef}>
@@ -184,7 +188,7 @@ export default function Header({ onLogout }: { onLogout?: () => void }) {
                   </div>
                   <div className="p-1">
                     <Link
-                      href="account/settings"
+                      href="/account/settings"
                       className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-slate-50"
                     >
                       <Settings className="h-4 w-4" />

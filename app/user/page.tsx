@@ -25,6 +25,7 @@ export default function UserDashboard() {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [employeeData, setEmployeeData] = useState<any>(null)
 
   const [formData, setFormData] = useState({
     employee_name: "",
@@ -41,7 +42,37 @@ export default function UserDashboard() {
   const checkUserAndFetchData = async () => {
     if (!user) return router.push("/login")
     if (user.role !== "user") return router.push("/")
+    
+    // Fetch employee data from employees table
+    await fetchEmployeeData()
     await fetchUserLeaveRequests()
+  }
+
+  const fetchEmployeeData = async () => {
+    if (!user?.email) return
+    try {
+      const { data, error } = await supabase
+        .from("employees")
+        .select("*")
+        .eq("email", user.email)
+        .single()
+
+      if (error) {
+        console.error("Error fetching employee data:", error)
+        return
+      }
+      
+      console.log("Employee data found:", data) // Debug
+      setEmployeeData(data)
+      
+      // Pre-fill employee name in form
+      setFormData(prev => ({
+        ...prev,
+        employee_name: data?.name || ""
+      }))
+    } catch (error) {
+      console.error("Error fetching employee data:", error)
+    }
   }
 
   const fetchUserLeaveRequests = async () => {
@@ -56,7 +87,7 @@ export default function UserDashboard() {
       if (error) throw error
       setLeaveRequests(data || [])
     } catch (error) {
-      console.error(error)
+      console.error("Error fetching leave requests:", error)
     } finally {
       setLoading(false)
     }
@@ -64,23 +95,63 @@ export default function UserDashboard() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    
+    if (!user?.email) {
+      alert("User email not found. Please try logging in again.")
+      return
+    }
+
+    if (!formData.employee_name) {
+      alert("Please enter your name.")
+      return
+    }
+
     setSubmitting(true)
+    
     try {
-      const { error } = await supabase.from("leave_requests").insert([
-        {
-          ...formData,
-          email: user?.email,
-          status: "Pending"
-        }
-      ])
-      if (error) throw error
-      alert("Leave request submitted successfully ✅")
+      // Get auth user ID
+      const { data: { user: authUser } } = await supabase.auth.getUser()
+      
+      const leaveData = {
+        user_id: authUser?.id || null, // Use auth user ID
+        employee_name: formData.employee_name,
+        email: user.email,
+        leave_type: formData.leave_type,
+        start_date: formData.start_date,
+        end_date: formData.end_date,
+        reason: formData.reason,
+        status: "pending"
+      }
+
+      console.log("Submitting leave data:", leaveData) // Debug log
+
+      const { data, error } = await supabase
+        .from("leave_requests")
+        .insert([leaveData])
+        .select()
+
+      if (error) {
+        console.error("Supabase error:", error)
+        throw error
+      }
+
+      console.log("Leave submitted successfully:", data) // Debug log
+      
+      alert("Leave request submitted successfully! ✅ Admin will be notified.")
       setShowForm(false)
-      setFormData({ employee_name: "", leave_type: "Sick Leave", start_date: "", end_date: "", reason: "" })
+      setFormData({ 
+        employee_name: employeeData?.name || "", 
+        leave_type: "Sick Leave", 
+        start_date: "", 
+        end_date: "", 
+        reason: "" 
+      })
+      
       await fetchUserLeaveRequests()
-    } catch (error) {
-      console.error(error)
-      alert("Failed to submit leave request ❌")
+      
+    } catch (error: any) {
+      console.error("Submit error:", error)
+      alert(`Failed to submit leave request ❌\n${error.message || "Unknown error"}`)
     } finally {
       setSubmitting(false)
     }
@@ -107,7 +178,7 @@ export default function UserDashboard() {
         <div className="flex justify-between items-center mb-8">
           <div>
             <h1 className="text-3xl font-semibold text-gray-800">Leave Dashboard</h1>
-            <p className="text-gray-600 mt-1">{user?.name || user?.email} | Role: User</p>
+            <p className="text-gray-600 mt-1">{employeeData?.name || user?.email} | Role: User</p>
           </div>
           <button
             onClick={handleLogout}
@@ -133,18 +204,49 @@ export default function UserDashboard() {
             <h2 className="text-xl font-semibold mb-5 text-gray-800">New Leave Request</h2>
             <form onSubmit={handleSubmit} className="space-y-4">
 
-              <InputField label="Employee Name *" value={formData.employee_name} onChange={(v) => setFormData({...formData, employee_name: v})} disabled={submitting} />
+              <InputField 
+                label="Employee Name *" 
+                value={formData.employee_name} 
+                onChange={(v) => setFormData({...formData, employee_name: v})} 
+                disabled={submitting} 
+              />
 
-              <SelectField label="Leave Type *" value={formData.leave_type} onChange={(v) => setFormData({...formData, leave_type: v})} disabled={submitting} />
+              <SelectField 
+                label="Leave Type *" 
+                value={formData.leave_type} 
+                onChange={(v) => setFormData({...formData, leave_type: v})} 
+                disabled={submitting} 
+              />
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <InputField label="Start Date *" type="date" value={formData.start_date} onChange={(v) => setFormData({...formData, start_date: v})} disabled={submitting} />
-                <InputField label="End Date *" type="date" value={formData.end_date} onChange={(v) => setFormData({...formData, end_date: v})} disabled={submitting} />
+                <InputField 
+                  label="Start Date *" 
+                  type="date" 
+                  value={formData.start_date} 
+                  onChange={(v) => setFormData({...formData, start_date: v})} 
+                  disabled={submitting} 
+                />
+                <InputField 
+                  label="End Date *" 
+                  type="date" 
+                  value={formData.end_date} 
+                  onChange={(v) => setFormData({...formData, end_date: v})} 
+                  disabled={submitting} 
+                />
               </div>
 
-              <TextareaField label="Reason *" value={formData.reason} onChange={(v) => setFormData({...formData, reason: v})} disabled={submitting} />
+              <TextareaField 
+                label="Reason *" 
+                value={formData.reason} 
+                onChange={(v) => setFormData({...formData, reason: v})} 
+                disabled={submitting} 
+              />
 
-              <button type="submit" disabled={submitting} className="bg-green-600 text-white px-5 py-2 rounded-md hover:bg-green-700 transition disabled:opacity-50">
+              <button 
+                type="submit" 
+                disabled={submitting} 
+                className="bg-green-600 text-white px-5 py-2 rounded-md hover:bg-green-700 transition disabled:opacity-50"
+              >
                 {submitting ? "Submitting..." : "Submit Request"}
               </button>
             </form>
@@ -180,13 +282,13 @@ export default function UserDashboard() {
                       <td className="px-4 py-2 text-gray-700 max-w-xs truncate" title={req.reason}>{req.reason}</td>
                       <td className="px-4 py-2">
                         <span className={`px-2 py-1 rounded-full text-sm font-semibold ${
-                          req.status === "Approved"
+                          req.status === "approved" || req.status === "Approved"
                             ? "bg-green-100 text-green-800"
-                            : req.status === "Rejected"
+                            : req.status === "rejected" || req.status === "Rejected"
                             ? "bg-red-100 text-red-800"
                             : "bg-yellow-100 text-yellow-800"
                         }`}>
-                          {req.status}
+                          {req.status.charAt(0).toUpperCase() + req.status.slice(1)}
                         </span>
                       </td>
                       <td className="px-4 py-2 text-gray-500">{new Date(req.created_at).toLocaleDateString()}</td>
