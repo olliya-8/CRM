@@ -1,4 +1,5 @@
-"use client"
+'use client'
+
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
@@ -25,11 +26,10 @@ export default function LoginPage() {
     setError("")
 
     try {
-      const { data, error: authError } =
-        await supabase.auth.signInWithPassword({
-          email,
-          password,
-        })
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
 
       if (authError || !data.user) {
         setError(authError?.message || "Invalid credentials")
@@ -44,6 +44,7 @@ export default function LoginPage() {
         .eq("email", authUser.email)
         .single()
 
+      // If user profile not found, create a new one
       if (profileError || !profile) {
         const { data: newProfile, error: insertError } = await supabase
           .from("users")
@@ -64,16 +65,17 @@ export default function LoginPage() {
         profile = newProfile
       }
 
-      await refreshUser()
+      await refreshUser() // update user context
 
+      // Redirect based on role
       if (profile.role === "admin") {
-        console.log("Opening /dashboard")
         router.push("/dashboard")
       } else {
         router.push("/user")
       }
-    } catch (err) {
-      setError("Something went wrong")
+    } catch (err: any) {
+      console.error("Login error:", err)
+      setError(err.message || "Something went wrong")
     } finally {
       setLoading(false)
     }
@@ -117,7 +119,7 @@ export default function LoginPage() {
       {/* RIGHT SIDE */}
       <div className="flex-1 lg:w-1/2 bg-white lg:rounded-r-2xl flex items-center justify-center p-4 md:p-8 overflow-y-auto">
         <div className="w-full max-w-md">
-          {/* Mobile Logo - Added top padding pt-10 */}
+          {/* Mobile Logo */}
           <div className="lg:hidden flex flex-col items-center justify-center gap-3 mb-8 pt-10">
             <div className="w-12 h-12 bg-white shadow-md rounded-xl flex items-center justify-center border border-gray-50">
               <Image src={BGV} alt="Logo" className="w-8 h-8" />
@@ -128,12 +130,12 @@ export default function LoginPage() {
           </div>
 
           <div className="p-2 sm:p-8">
-            {/* Hidden on small screens via hidden sm:block */}
             <h2 className="hidden sm:block text-2xl text-center font-bold text-gray-900 mb-8">
               Sign In to BlueGrid Ventures
             </h2>
 
             <form onSubmit={handleLogin} className="space-y-5">
+              {/* Email */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Email Address
@@ -149,6 +151,7 @@ export default function LoginPage() {
                 />
               </div>
 
+              {/* Password */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Password
@@ -173,6 +176,7 @@ export default function LoginPage() {
                 </div>
               </div>
 
+              {/* Remember Me & Forgot */}
               <div className="flex items-center justify-between">
                 <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
                   <input
@@ -191,12 +195,14 @@ export default function LoginPage() {
                 </Link>
               </div>
 
+              {/* Error Message */}
               {error && (
                 <div className="text-red-600 text-sm bg-red-50 p-3 rounded-lg border border-red-100">
                   {error}
                 </div>
               )}
 
+              {/* Submit */}
               <button
                 type="submit"
                 disabled={loading}

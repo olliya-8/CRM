@@ -12,13 +12,13 @@ import {
   Folder,
   LogOut,
   Menu,
-  X
+  X,
+  ClipboardList
 } from "lucide-react"
 import Image from "next/image"
 import BGV from "@/assets/bgv.png"
 import { supabase } from "@/lib/supabase"
 
-// ❌ menuItems stays simple (logic unchanged)
 const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
   { icon: Layers, label: "Projects", path: "/projects-page" },
@@ -26,6 +26,7 @@ const menuItems = [
   { icon: Calendar, label: "Calendar", path: "/calendar-page" },
   { icon: Plane, label: "Vacations", path: "/vacations-page" },
   { icon: Users, label: "Employees", path: "/employees-page" },
+  { icon: ClipboardList, label: "Tasks", path: "/tasks-page" },
   { icon: Folder, label: "Info Portal", path: "/info-portal-page" },
 ]
 
@@ -33,42 +34,64 @@ export default function Sidebar() {
   const router = useRouter()
   const pathname = usePathname()
   const [isOpen, setIsOpen] = useState(false)
-
-  // ✅ CODE 2: unread leaves count
   const [unreadLeavesCount, setUnreadLeavesCount] = useState(0)
+  const [unreadTasksCount, setUnreadTasksCount] = useState(0)
+  const [userEmail, setUserEmail] = useState<string | null>(null)
 
   useEffect(() => {
-    const fetchUnreadCount = async () => {
-      const { data } = await supabase
-        .from("leave_requests")
-        .select("id", { count: "exact" })
-        .eq("status", "pending")
+    const userStr = localStorage.getItem("user")
+    if (!userStr) return
+    const user = JSON.parse(userStr)
+    setUserEmail(user.email)
 
-      if (data) setUnreadLeavesCount(data.length)
-    }
+    fetchUnreadLeaves(user.email)
+    fetchUnreadTaskComments(user.email)
 
-    fetchUnreadCount()
-
-    // ✅ Realtime updates
-    const channel = supabase
-      .channel("sidebar-leave-updates")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "leave_requests",
-        },
-        () => {
-          fetchUnreadCount()
-        }
-      )
+    // ✅ Realtime updates for leaves and task comments
+    const channel = supabase.channel("sidebar-notifications")
+      .on("postgres_changes", { event: "*", schema: "public", table: "leave_requests" }, () => fetchUnreadLeaves(user.email))
+      .on("postgres_changes", { event: "*", schema: "public", table: "notifications" }, () => fetchUnreadTaskComments(user.email))
       .subscribe()
 
-    return () => {
-      supabase.removeChannel(channel)
-    }
+    return () => supabase.removeChannel(channel)
   }, [])
+
+  // ---------- Fetch unread Vacation notifications ----------
+  const fetchUnreadLeaves = async (email: string) => {
+    const lastViewed = localStorage.getItem("vacations_last_viewed")
+    let query = supabase
+      .from("leave_requests")
+      .select("id, created_at", { count: "exact" })
+      .eq("status", "pending")
+
+    if (lastViewed) query = query.gt("created_at", lastViewed)
+    const { data } = await query
+    if (data) setUnreadLeavesCount(data.length)
+  }
+
+  // ---------- Fetch unread Task Comment notifications ----------
+  const fetchUnreadTaskComments = async (email: string) => {
+    if (!email) return
+    const { data } = await supabase
+      .from("notifications")
+      .select("id", { count: "exact" })
+      .eq("recipient_email", email)
+      .eq("type", "task_comment")
+      .eq("is_read", false)
+    
+    if (data) setUnreadTasksCount(data.length)
+  }
+
+  // ---------- Reset badges when pages visited ----------
+  useEffect(() => {
+    if (pathname.replace(/\/$/, "") === "/vacations-page") {
+      localStorage.setItem("vacations_last_viewed", new Date().toISOString())
+      setUnreadLeavesCount(0)
+    }
+    if (pathname.replace(/\/$/, "") === "/tasks-page") {
+      setUnreadTasksCount(0)
+    }
+  }, [pathname])
 
   const handleLogout = () => {
     localStorage.removeItem("user")
@@ -93,7 +116,7 @@ export default function Sidebar() {
       {/* Backdrop */}
       {isOpen && (
         <div
-          className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[45] lg:hidden"
+          className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[45]"
           onClick={() => setIsOpen(false)}
         />
       )}
@@ -101,12 +124,12 @@ export default function Sidebar() {
       {/* Sidebar */}
       <div
         className={`
-        w-64 h-[calc(100vh-16px)] bg-white flex flex-col shadow-2xl rounded-2xl
-        fixed top-2 left-2 bottom-2 z-[50]
-        transition-transform duration-500
-        ${isOpen ? "translate-x-0" : "-translate-x-[110%] lg:translate-x-0"}
-        lg:static lg:sticky lg:top-2
-      `}
+          w-64 h-[calc(100vh-16px)] bg-white flex flex-col shadow-2xl rounded-2xl
+          fixed top-2 left-2 bottom-2 z-[50]
+          transition-transform duration-500
+          ${isOpen ? "translate-x-0" : "-translate-x-[110%] lg:translate-x-0"}
+          lg:static lg:sticky lg:top-2
+        `}
       >
         {/* Logo */}
         <div className="pt-20 lg:pt-6 px-4 flex justify-start">
@@ -122,31 +145,27 @@ export default function Sidebar() {
         <nav className="flex-1 px-4 space-y-2 overflow-y-auto py-6">
           {menuItems.map((item) => {
             const Icon = item.icon
-            const isActive =
-              pathname.replace(/\/$/, "") === item.path.replace(/\/$/, "")
+            const isActive = pathname.replace(/\/$/, "") === item.path.replace(/\/$/, "")
 
-            const showBadge =
-              item.label === "Vacations" && unreadLeavesCount > 0
+            let badgeCount = 0
+            if (item.label === "Vacations") badgeCount = unreadLeavesCount
+            if (item.label === "Tasks") badgeCount = unreadTasksCount
 
             return (
               <button
                 key={item.label}
                 onClick={() => handleNavigation(item.path)}
                 className={`relative w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all
-                  ${
-                    isActive
-                      ? "bg-[#EEF4FF] text-[#3F8CFF]"
-                      : "text-[#7D8592] hover:bg-[#F5F8FF]"
-                  }
+                  ${isActive ? "bg-[#EEF4FF] text-[#3F8CFF]" : "text-[#7D8592] hover:bg-[#F5F8FF]"}
                   text-sm sm:text-base lg:text-lg`}
               >
                 <Icon className="w-5 h-5 shrink-0" />
                 <span className="flex-1 text-left">{item.label}</span>
 
-                {/* ✅ CODE 1: Badge */}
-                {showBadge && (
+                {/* Badge */}
+                {badgeCount > 0 && (
                   <span className="min-w-[22px] h-[22px] flex items-center justify-center rounded-full bg-red-500 text-white text-xs font-bold px-2">
-                    {unreadLeavesCount}
+                    {badgeCount}
                   </span>
                 )}
               </button>

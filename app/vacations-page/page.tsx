@@ -4,7 +4,7 @@ import { createClient } from '@supabase/supabase-js'
 import { useEffect, useState } from 'react'
 import toast, { Toaster } from 'react-hot-toast'
 import { useUser } from '@/components/user-context'
-import { Bell } from 'lucide-react'
+import { Bell, Calendar, Plus, Edit2, Trash2, X } from 'lucide-react'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -22,323 +22,714 @@ interface LeaveRequest {
   reason: string
   status: 'pending' | 'approved' | 'rejected'
   created_at: string
+  updated_at: string
+  leave_request_id: string | null
   approved_by?: string | null
   approved_at?: string | null
-  is_read?: boolean
 }
 
-// Utility Functions
-const formatDate = (dateString: string) =>
-  new Date(dateString).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+interface CompanyHoliday {
+  id: string
+  title: string
+  description: string | null
+  date: string
+  end_date?: string | null
+  holiday_type: string
+  is_recurring: boolean
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
 
-const calculateDays = (start: string, end: string) =>
-  Math.ceil((new Date(end).getTime() - new Date(start).getTime()) / (1000 * 60 * 60 * 24)) + 1
+const formatDate = (date: string) =>
+  new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+
+const formatDateTime = (date: string) =>
+  new Date(date).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 
 export default function VacationsPage() {
   const { user } = useUser()
+
+  const [activeTab, setActiveTab] = useState<'leaves' | 'holidays'>('leaves')
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([])
-  const [loading, setLoading] = useState(true)
+  const [companyHolidays, setCompanyHolidays] = useState<CompanyHoliday[]>([])
   const [newRequestsCount, setNewRequestsCount] = useState(0)
+  const [loadingLeaves, setLoadingLeaves] = useState(true)
+  const [loadingHolidays, setLoadingHolidays] = useState(true)
+
   const [selectedLeave, setSelectedLeave] = useState<LeaveRequest | null>(null)
-  const [showDetailsModal, setShowDetailsModal] = useState(false)
+  const [showLeaveDetailsModal, setShowLeaveDetailsModal] = useState(false)
+
+  const [showAddHolidayModal, setShowAddHolidayModal] = useState(false)
+  const [selectedHoliday, setSelectedHoliday] = useState<CompanyHoliday | null>(null)
+  const [showHolidayDetailsModal, setShowHolidayDetailsModal] = useState(false)
+
+  const [formData, setFormData] = useState({
+    title: '',
+    description: '',
+    date: '',
+    end_date: '',
+    holiday_type: 'company',
+    is_recurring: false,
+  })
+  const [submitting, setSubmitting] = useState(false)
+
+  const [editHoliday, setEditHoliday] = useState({
+    title: '',
+    date: '',
+    end_date: '',
+    description: '',
+    holiday_type: 'company',
+    is_recurring: false
+  })
 
   useEffect(() => {
     fetchLeaveRequests()
-    setupRealtimeSubscription()
+    fetchCompanyHolidays()
+    fetchNewNotificationsCount()
+    setupRealtime()
   }, [])
 
-  // Fetch leave requests
   const fetchLeaveRequests = async () => {
-    setLoading(true)
-    const { data, error } = await supabase
+    setLoadingLeaves(true)
+    const { data } = await supabase
       .from('leave_requests')
       .select('*')
       .order('created_at', { ascending: false })
+    if (data) setLeaveRequests(data)
+    setLoadingLeaves(false)
+  }
 
-    if (!error && data) {
-      setLeaveRequests(data)
-      const unreadCount = data.filter((r: LeaveRequest) => !r.is_read).length
-      setNewRequestsCount(unreadCount)
+  const fetchCompanyHolidays = async () => {
+    setLoadingHolidays(true)
+    const { data } = await supabase
+      .from('company_holidays')
+      .select('*')
+      .order('date', { ascending: true })
+    if (data) setCompanyHolidays(data)
+    setLoadingHolidays(false)
+  }
 
-      // Mark all as read when opening page
-      if (unreadCount > 0) markAllAsRead(data)
-    } else if (error) {
-      console.error(error)
-      toast.error('Failed to fetch leave requests')
+  const fetchNewNotificationsCount = async () => {
+    const { count } = await supabase
+      .from('leave_notifications')
+      .select('*', { count: 'exact' })
+      .eq('user_email', user?.email)
+      .eq('is_read', false)
+    setNewRequestsCount(count || 0)
+  }
+
+  const handleUpdateLeave = async (leave: LeaveRequest, status: 'approved' | 'rejected') => {
+    // Get current timestamp
+    const currentTimestamp = new Date().toISOString()
+    
+    const { error } = await supabase
+      .from('leave_requests')
+      .update({
+        status,
+        approved_by: user?.email,
+        approved_at: currentTimestamp,
+        updated_at: currentTimestamp, // Current time when admin takes action
+      })
+      .eq('id', leave.id)
+    
+    if (error) return toast.error(error.message)
+
+    // insert notification
+    await supabase.from('leave_notifications').insert([{
+      user_email: leave.email,
+      leave_id: leave.id,
+      type: 'admin_action',
+      message: `Your leave request has been ${status}`,
+      is_read: false
+    }])
+
+    toast.success(`Leave ${status} ✅`)
+    fetchLeaveRequests()
+    fetchNewNotificationsCount()
+    setShowLeaveDetailsModal(false)
+  }
+
+  const handleDeleteLeave = async (id: string) => {
+    if (!confirm('Are you sure?')) return
+    await supabase.from('leave_requests').delete().eq('id', id)
+    toast.success('Deleted 🗑️')
+    fetchLeaveRequests()
+    setShowLeaveDetailsModal(false)
+  }
+
+  const handleSubmitHoliday = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSubmitting(true)
+
+    const currentTimestamp = new Date().toISOString()
+
+    const holidayPayload = {
+      ...formData,
+      end_date: formData.end_date || null,
+      created_by: user?.email || null,
+      created_at: currentTimestamp,
+      updated_at: currentTimestamp
     }
-    setLoading(false)
+
+    const { data: holidayData, error } = await supabase
+      .from('company_holidays')
+      .insert([holidayPayload])
+      .select()
+    
+    if (error) {
+      setSubmitting(false)
+      return toast.error(error.message)
+    }
+    if (!holidayData || !holidayData.length) {
+      setSubmitting(false)
+      return
+    }
+
+    // Notify all users
+    const { data: users } = await supabase.from('employees').select('email')
+    if (users) {
+      const dateRange = formData.end_date 
+        ? `${formData.date} to ${formData.end_date}` 
+        : formData.date
+      const notifications = users.map(u => ({
+        user_email: u.email,
+        leave_id: null,
+        type: 'company_holiday',
+        message: `New company holiday: ${formData.title} on ${dateRange}`,
+        is_read: false
+      }))
+      await supabase.from('leave_notifications').insert(notifications)
+    }
+
+    toast.success('Holiday added and notifications sent! 🎉')
+    fetchCompanyHolidays()
+    setShowAddHolidayModal(false)
+    setFormData({ title: '', description: '', date: '', end_date: '', holiday_type: 'company', is_recurring: false })
+    setSubmitting(false)
   }
 
-  const markAllAsRead = async (requests: LeaveRequest[]) => {
-    const unreadIds = requests.filter(r => !r.is_read).map(r => r.id)
-    if (unreadIds.length === 0) return
-    await supabase.from('leave_requests').update({ is_read: true }).in('id', unreadIds)
-    setNewRequestsCount(0)
+  const handleUpdateHoliday = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedHoliday) return
+    
+    // Get current timestamp
+    const currentTimestamp = new Date().toISOString()
+    
+    const { error } = await supabase
+      .from('company_holidays')
+      .update({
+        title: editHoliday.title,
+        date: editHoliday.date,
+        end_date: editHoliday.end_date || null,
+        description: editHoliday.description,
+        holiday_type: editHoliday.holiday_type,
+        is_recurring: editHoliday.is_recurring,
+        updated_at: currentTimestamp // Current time when admin updates
+      })
+      .eq('id', selectedHoliday.id)
+
+    if (error) return toast.error(error.message)
+    
+    toast.success('Holiday updated! 🎉')
+    fetchCompanyHolidays()
+    setShowHolidayDetailsModal(false)
   }
 
-  // Realtime subscription
-  const setupRealtimeSubscription = () => {
+  const handleDeleteHoliday = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this holiday?')) return
+    const { error } = await supabase.from('company_holidays').delete().eq('id', id)
+    if (error) return toast.error(error.message)
+    
+    toast.success('Holiday deleted 🗑️')
+    fetchCompanyHolidays()
+    setShowHolidayDetailsModal(false)
+  }
+
+  const setupRealtime = () => {
     const channel = supabase
-      .channel('leave-requests-changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'leave_requests' },
-        (payload) => {
-          if (payload.eventType === 'INSERT') {
-            toast.success('🏖️ New leave request received!', { duration: 5000, icon: '🔔' })
-          }
-          if (payload.eventType === 'UPDATE') {
-            toast.success('📝 Leave request updated!', { duration: 3000 })
-          }
-          fetchLeaveRequests()
-        }
-      )
+      .channel('vacations')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'leave_requests' }, () => {
+        fetchLeaveRequests()
+        fetchNewNotificationsCount()
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'company_holidays' }, () => {
+        fetchCompanyHolidays()
+        fetchNewNotificationsCount()
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'leave_notifications' }, () => {
+        fetchNewNotificationsCount()
+      })
       .subscribe()
-
     return () => supabase.removeChannel(channel)
   }
 
-  const getLeavesByStatus = (status: 'approved' | 'pending' | 'rejected') =>
-    leaveRequests.filter(v => v.status === status)
-
-  // Approve / Reject / Delete
-  const handleApprove = async (id: string) => {
-    const loadingToast = toast.loading('Approving leave...')
-    const { error } = await supabase
-      .from('leave_requests')
-      .update({ status: 'approved', approved_by: user?.email, approved_at: new Date().toISOString() })
-      .eq('id', id)
-    if (!error) {
-      toast.success('Leave approved ✅', { id: loadingToast })
-      fetchLeaveRequests()
-      setShowDetailsModal(false)
-    } else toast.error('Failed: ' + error.message, { id: loadingToast })
-  }
-
-  const handleReject = async (id: string) => {
-    const loadingToast = toast.loading('Rejecting leave...')
-    const { error } = await supabase
-      .from('leave_requests')
-      .update({ status: 'rejected', approved_by: user?.email, approved_at: new Date().toISOString() })
-      .eq('id', id)
-    if (!error) {
-      toast.success('Leave rejected ❌', { id: loadingToast })
-      fetchLeaveRequests()
-      setShowDetailsModal(false)
-    } else toast.error('Failed: ' + error.message, { id: loadingToast })
-  }
-
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure?')) return
-    const loadingToast = toast.loading('Deleting leave...')
-    const { error } = await supabase.from('leave_requests').delete().eq('id', id)
-    if (!error) {
-      toast.success('Leave deleted 🗑️', { id: loadingToast })
-      fetchLeaveRequests()
-      setShowDetailsModal(false)
-    } else toast.error('Failed: ' + error.message, { id: loadingToast })
-  }
-
-  const openDetailsModal = (leave: LeaveRequest) => {
-    setSelectedLeave(leave)
-    setShowDetailsModal(true)
-  }
-
-  if (loading)
-    return (
-      <div className="flex justify-center items-center h-screen bg-gray-50">
-        <div className="text-lg text-slate-600 animate-pulse">Loading leave requests...</div>
-      </div>
-    )
-
   return (
-    <div className="flex-1 h-screen overflow-y-auto bg-gray-50">
+    <div className="flex-1 h-screen overflow-y-auto bg-gray-50 p-6">
       <Toaster position="top-right" />
-      <main className="p-4 sm:p-6 md:p-8 overflow-auto">
-        {/* Header */}
-        <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent">
-              Leave Requests
-            </h1>
-            {newRequestsCount > 0 && (
-              <div className="flex items-center gap-2 px-3 py-1 bg-red-100 text-red-700 rounded-full animate-pulse">
-                <Bell className="w-4 h-4" />
-                <span className="text-sm font-semibold">{newRequestsCount} new</span>
-              </div>
-            )}
+      <div className="mb-6 flex justify-between items-center">
+        <h1 className="text-3xl font-bold text-slate-800">Vacations & Holidays</h1>
+        {newRequestsCount > 0 && (
+          <div className="flex items-center gap-2 px-3 py-1 bg-red-100 text-red-700 rounded-full animate-pulse">
+            <Bell className="w-4 h-4" /> {newRequestsCount} New Notifications
           </div>
-        </div>
-
-        {/* Status Cards */}
-        <div className="flex flex-wrap gap-4 mb-6">
-          <StatusCard title="Pending" color="yellow" leaves={getLeavesByStatus('pending')} onLeaveClick={openDetailsModal} showBadge={newRequestsCount > 0} />
-          <StatusCard title="Approved" color="green" leaves={getLeavesByStatus('approved')} onLeaveClick={openDetailsModal} />
-          <StatusCard title="Rejected" color="red" leaves={getLeavesByStatus('rejected')} onLeaveClick={openDetailsModal} />
-        </div>
-
-        {/* Details Modal */}
-        {showDetailsModal && selectedLeave && (
-          <LeaveDetailsModal leave={selectedLeave} onClose={() => setShowDetailsModal(false)} onApprove={handleApprove} onReject={handleReject} onDelete={handleDelete} />
         )}
-      </main>
+      </div>
+      {/* Tabs */}
+      <div className="flex gap-2 mb-6 border-b border-slate-200">
+        <button
+          onClick={() => setActiveTab('leaves')}
+          className={`px-6 py-3 font-semibold transition-all ${activeTab === 'leaves' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-600 hover:text-slate-900'}`}
+        >
+          📋 Leave Requests
+        </button>
+        <button
+          onClick={() => setActiveTab('holidays')}
+          className={`px-6 py-3 font-semibold transition-all ${activeTab === 'holidays' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-600 hover:text-slate-900'}`}
+        >
+          🎉 Company Holidays
+        </button>
+      </div>
+      {/* Content */}
+      {activeTab === 'leaves' && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {['pending','approved','rejected'].map(status => (
+            <div key={status} className="bg-white rounded-xl border border-slate-200 border-t-4 shadow-sm p-5">
+              <h3 className="font-bold text-slate-700 capitalize mb-4 flex justify-between items-center">
+                {status} <span className="text-xs bg-slate-200 px-2 py-1 rounded-full">{leaveRequests.filter(l=>l.status===status).length}</span>
+              </h3>
+              {leaveRequests.filter(l=>l.status===status).map(l => (
+                <div key={l.id} onClick={()=>{setSelectedLeave(l); setShowLeaveDetailsModal(true)}} className="bg-white p-3 rounded-lg border border-slate-100 hover:border-blue-300 hover:shadow-md transition-all cursor-pointer mb-2">
+                  <div className="font-semibold text-slate-800">{l.employee_name}</div>
+                  <div className="text-xs text-slate-500 flex items-center gap-1 mt-1">
+                    <Calendar className="w-3 h-3"/> {formatDate(l.start_date)} - {formatDate(l.end_date)}
+                  </div>
+                  <div className="text-xs text-blue-600 mt-1">{l.leave_type}</div>
+                </div>
+              ))}
+              {leaveRequests.filter(l=>l.status===status).length===0 && <div className="text-sm text-slate-400 italic">No requests</div>}
+            </div>
+          ))}
+        </div>
+      )}
+      {activeTab==='holidays' && (
+        <div>
+          <button onClick={()=>setShowAddHolidayModal(true)} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg mb-4 flex items-center gap-2"><Plus className="w-5 h-5"/> Add Holiday</button>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {companyHolidays.map(h=>(
+              <div key={h.id} onClick={()=>{
+                setSelectedHoliday(h); 
+                setEditHoliday({
+                  title: h.title,
+                  date: h.date,
+                  end_date: h.end_date || '',
+                  description: h.description || '',
+                  holiday_type: h.holiday_type,
+                  is_recurring: h.is_recurring
+                });
+                setShowHolidayDetailsModal(true)
+              }} className="bg-white p-5 rounded-xl border border-slate-200 cursor-pointer hover:border-blue-400 hover:shadow-lg transition-all group">
+                <div className="flex justify-between items-start mb-2">
+                  <h3 className="font-bold text-slate-800 group-hover:text-blue-600 transition-colors">{h.title}</h3>
+                  <Edit2 className="w-4 h-4 text-slate-300 group-hover:text-blue-400"/>
+                </div>
+                <div className="text-sm text-slate-500 flex items-center gap-2 mb-2">
+                  <Calendar className="w-4 h-4"/> 
+                  {formatDate(h.date)}
+                  {h.end_date && <> - {formatDate(h.end_date)}</>}
+                </div>
+                <div className="flex gap-2 mb-2">
+                  <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">{h.holiday_type}</span>
+                  {h.is_recurring && <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded">🔁 Recurring</span>}
+                </div>
+                {h.description && <p className="text-xs text-slate-400 mt-3 line-clamp-2">{h.description}</p>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* === Modals === */}
+      {showLeaveDetailsModal && selectedLeave && (
+        <LeaveDetailsModal leave={selectedLeave} onClose={()=>setShowLeaveDetailsModal(false)} onUpdate={handleUpdateLeave} onDelete={handleDeleteLeave}/>
+      )}
+      {showAddHolidayModal && (
+        <AddHolidayModal 
+          formData={formData} setFormData={setFormData} onClose={()=>setShowAddHolidayModal(false)} onSubmit={handleSubmitHoliday} submitting={submitting}
+        />
+      )}
+      {showHolidayDetailsModal && selectedHoliday && (
+        <HolidayDetailsModal 
+          holiday={selectedHoliday} 
+          editData={editHoliday}
+          setEditData={setEditHoliday}
+          onClose={()=>setShowHolidayDetailsModal(false)} 
+          onUpdate={handleUpdateHoliday}
+          onDelete={handleDeleteHoliday}
+        />
+      )}
     </div>
   )
 }
 
-// ---------------- Status Card ----------------
-interface StatusCardProps {
-  title: string
-  color: 'green' | 'yellow' | 'red'
-  leaves: LeaveRequest[]
-  onLeaveClick: (leave: LeaveRequest) => void
-  showBadge?: boolean
-}
-
-const StatusCard = ({ title, color, leaves, onLeaveClick, showBadge = false }: StatusCardProps) => {
-  const [isHovered, setIsHovered] = useState(false)
-  const colors = {
-    green: { bg: 'bg-green-100', border: 'border-green-200', text: 'text-green-700', borderAccent: 'border-green-400' },
-    yellow: { bg: 'bg-yellow-100', border: 'border-yellow-200', text: 'text-yellow-700', borderAccent: 'border-yellow-400' },
-    red: { bg: 'bg-red-100', border: 'border-red-200', text: 'text-red-700', borderAccent: 'border-red-400' },
-  }
-  const c = colors[color]
+// === Leave Details Modal ===
+const LeaveDetailsModal = ({ leave, onClose, onUpdate, onDelete }: any) => {
+  const [editData, setEditData] = useState({ 
+    start_date: leave.start_date, 
+    end_date: leave.end_date, 
+    leave_type: leave.leave_type,
+    reason: leave.reason,
+    employee_name: leave.employee_name,
+    email: leave.email
+  })
 
   return (
-    <div
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      className={`flex-1 min-w-[220px] bg-white rounded-lg border-2 ${c.border} p-5 cursor-pointer hover:shadow-lg transition-all relative`}
-    >
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <h3 className={`text-lg font-bold ${c.text}`}>{title}</h3>
-          {showBadge && title === 'Pending' && <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>}
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl p-6 relative max-h-[90vh] overflow-y-auto">
+        <button onClick={onClose} className="absolute right-4 top-4 text-slate-400 hover:text-slate-600"><X/></button>
+        
+        <h2 className="text-2xl font-bold mb-2">{leave.employee_name}</h2>
+        <div className="text-blue-600 font-medium mb-4">{leave.email}</div>
+        
+        {/* Status Badge */}
+        <div className="mb-4">
+          <span className={`inline-block px-3 py-1 rounded-full text-sm font-semibold ${
+            leave.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
+            leave.status === 'approved' ? 'bg-green-100 text-green-700' :
+            'bg-red-100 text-red-700'
+          }`}>
+            {leave.status.toUpperCase()}
+          </span>
         </div>
-        <div className={`w-12 h-12 rounded-full ${c.bg} flex items-center justify-center`}>
-          <span className="text-xl font-bold">{leaves.length}</span>
-        </div>
-      </div>
 
-      <div className="space-y-2">
-        {leaves.slice(0, 3).map((leave) => (
-          <div
-            key={leave.id}
-            onClick={(e) => {
-              e.stopPropagation()
-              onLeaveClick(leave)
-            }}
-            className={`text-sm text-slate-600 border-l-2 pl-2 ${c.borderAccent} hover:bg-slate-50 rounded p-2 transition-colors cursor-pointer`}
-          >
-            <div className="font-medium">{leave.employee_name}</div>
-            <div className="text-xs text-slate-500">{leave.email}</div>
-            <div className="text-xs">
-              {formatDate(leave.start_date)} - {formatDate(leave.end_date)}
+        <div className="space-y-4 bg-slate-50 p-4 rounded-lg border border-slate-100 mb-6">
+          {/* Employee Details */}
+          <div className="grid grid-cols-2 gap-4 pb-4 border-b border-slate-200">
+            <div>
+              <label className="text-xs font-bold text-slate-500 uppercase">Employee Name</label>
+              <input 
+                type="text" 
+                value={editData.employee_name} 
+                className="w-full mt-1 p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none" 
+                onChange={e=>setEditData({...editData,employee_name:e.target.value})}
+              />
             </div>
-            <div className="text-xs text-slate-500 truncate">{leave.reason}</div>
-          </div>
-        ))}
-        {leaves.length > 3 && <div className={`text-xs font-medium ${c.text}`}>+{leaves.length - 3} more</div>}
-      </div>
-    </div>
-  )
-}
-
-// ---------------- Leave Details Modal ----------------
-interface LeaveDetailsModalProps {
-  leave: LeaveRequest
-  onClose: () => void
-  onApprove: (id: string) => void
-  onReject: (id: string) => void
-  onDelete: (id: string) => void
-}
-
-const LeaveDetailsModal = ({ leave, onClose, onApprove, onReject, onDelete }: LeaveDetailsModalProps) => {
-  const statusColors = {
-    approved: { bg: 'bg-green-100', text: 'text-green-700', border: 'border-green-300' },
-    pending: { bg: 'bg-yellow-100', text: 'text-yellow-700', border: 'border-yellow-300' },
-    rejected: { bg: 'bg-red-100', text: 'text-red-700', border: 'border-red-300' }
-  }
-  const colors = statusColors[leave.status]
-
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
-        <div className="flex items-start justify-between mb-6">
-          <h2 className="text-2xl font-bold text-slate-900">Leave Request Details</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-2xl leading-none">&times;</button>
-        </div>
-
-        <div className="space-y-4">
-          <div className="bg-slate-50 rounded-lg p-4">
-            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Employee Name</label>
-            <p className="text-lg font-bold text-slate-900 mt-1">{leave.employee_name}</p>
-            <p className="text-sm text-slate-600 mt-1">{leave.email}</p>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Status</label>
-            <span className={`${colors.bg} ${colors.text} px-4 py-2 rounded-full text-sm font-semibold border ${colors.border}`}>
-              {leave.status.charAt(0).toUpperCase() + leave.status.slice(1)}
-            </span>
-          </div>
-
-          <div className="bg-purple-50 rounded-lg p-4 border border-purple-200">
-            <label className="text-xs font-semibold text-purple-700 uppercase tracking-wide mb-2 block">Leave Type</label>
-            <p className="text-base font-semibold text-slate-900">{leave.leave_type}</p>
-          </div>
-
-          <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-            <label className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-2 block">Leave Period</label>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-slate-500">Start Date</p>
-                <p className="text-base font-semibold text-slate-900">{formatDate(leave.start_date)}</p>
-              </div>
-              <div className="text-slate-400">→</div>
-              <div>
-                <p className="text-xs text-slate-500">End Date</p>
-                <p className="text-base font-semibold text-slate-900">{formatDate(leave.end_date)}</p>
-              </div>
-            </div>
-            <div className="mt-3 pt-3 border-t border-blue-200">
-              <p className="text-sm text-slate-600">
-                Total Duration: <span className="font-bold text-blue-600">{calculateDays(leave.start_date, leave.end_date)} days</span>
-              </p>
+            <div>
+              <label className="text-xs font-bold text-slate-500 uppercase">Email</label>
+              <input 
+                type="email" 
+                value={editData.email} 
+                className="w-full mt-1 p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none" 
+                onChange={e=>setEditData({...editData,email:e.target.value})}
+              />
             </div>
           </div>
 
-          <div className="bg-slate-50 rounded-lg p-4">
-            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Reason</label>
-            <p className="text-base text-slate-900 mt-1 leading-relaxed">{leave.reason}</p>
+          {/* Leave Type */}
+          <div>
+            <label className="text-xs font-bold text-slate-500 uppercase">Leave Type</label>
+            <select 
+              value={editData.leave_type} 
+              className="w-full mt-1 p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none"
+              onChange={e=>setEditData({...editData,leave_type:e.target.value})}
+            >
+              <option value="annual">Annual Leave</option>
+              <option value="sick">Sick Leave</option>
+              <option value="personal">Personal Leave</option>
+              <option value="unpaid">Unpaid Leave</option>
+              <option value="other">Other</option>
+            </select>
           </div>
 
-          {leave.approved_by && (
-            <div className="bg-slate-50 rounded-lg p-4">
-              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Approved/Rejected By</label>
-              <p className="text-sm text-slate-900 mt-1">{leave.approved_by}</p>
-              {leave.approved_at && <p className="text-xs text-slate-500 mt-1">{formatDate(leave.approved_at)}</p>}
+          {/* Dates */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-bold text-slate-500 uppercase">Start Date</label>
+              <input 
+                type="date" 
+                value={editData.start_date} 
+                className="w-full mt-1 p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none" 
+                onChange={e=>setEditData({...editData,start_date:e.target.value})}
+              />
             </div>
-          )}
+            <div>
+              <label className="text-xs font-bold text-slate-500 uppercase">End Date</label>
+              <input 
+                type="date" 
+                value={editData.end_date} 
+                className="w-full mt-1 p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none" 
+                onChange={e=>setEditData({...editData,end_date:e.target.value})}
+              />
+            </div>
+          </div>
+
+          {/* Reason */}
+          <div>
+            <label className="text-xs font-bold text-slate-500 uppercase">Reason for Leave</label>
+            <textarea 
+              value={editData.reason}
+              className="w-full mt-1 p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none min-h-[80px]"
+              onChange={e=>setEditData({...editData,reason:e.target.value})}
+            />
+          </div>
+
+          {/* Timestamps */}
+          <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-200">
+            <div>
+              <label className="text-xs font-bold text-slate-500 uppercase">Submitted At</label>
+              <p className="text-xs text-slate-600 mt-1">{formatDateTime(leave.created_at)}</p>
+            </div>
+            <div>
+              <label className="text-xs font-bold text-slate-500 uppercase">Last Updated</label>
+              <p className="text-xs text-slate-600 mt-1 font-semibold text-green-600">{formatDateTime(leave.updated_at)}</p>
+            </div>
+          </div>
         </div>
 
-        <div className="flex gap-3 mt-6 pt-6 border-t">
-          {leave.status === 'pending' ? (
+        <div className="flex gap-3">
+          {leave.status==='pending' ? (
             <>
-              <button onClick={() => onApprove(leave.id)} className="flex-1 bg-green-600 hover:bg-green-700 text-white px-4 py-2.5 rounded-lg font-medium flex items-center justify-center gap-2">
-                ✅ Approve
-              </button>
-              <button onClick={() => onReject(leave.id)} className="flex-1 bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-lg font-medium flex items-center justify-center gap-2">
-                ❌ Reject
-              </button>
+              <button onClick={()=>onUpdate(leave,'approved')} className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2.5 rounded-lg font-semibold shadow-md">Approve</button>
+              <button onClick={()=>onUpdate(leave,'rejected')} className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2.5 rounded-lg font-semibold shadow-md">Reject</button>
             </>
           ) : (
-            <button onClick={() => onDelete(leave.id)} className="flex-1 bg-slate-600 hover:bg-slate-700 text-white px-4 py-2.5 rounded-lg font-medium flex items-center justify-center gap-2">
-              🗑️ Delete
-            </button>
+            <button onClick={()=>onDelete(leave.id)} className="flex-1 bg-slate-100 hover:bg-red-50 hover:text-red-600 text-slate-600 py-2.5 rounded-lg font-semibold flex items-center justify-center gap-2"><Trash2 className="w-4 h-4"/> Delete Record</button>
           )}
         </div>
       </div>
     </div>
   )
 }
+
+// === Add Holiday Modal ===
+const AddHolidayModal = ({ formData, setFormData, onClose, onSubmit, submitting }: any) => (
+  <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+    <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
+      <h2 className="text-2xl font-bold mb-6">Add Company Holiday</h2>
+      <form onSubmit={onSubmit} className="space-y-4">
+        {/* Title */}
+        <div>
+          <label className="text-sm font-semibold text-slate-700 mb-1 block">Title *</label>
+          <input 
+            type="text" 
+            placeholder="e.g., Christmas Holiday" 
+            required 
+            value={formData.title}
+            className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" 
+            onChange={e=>setFormData({...formData,title:e.target.value})}
+          />
+        </div>
+
+        {/* Dates */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-sm font-semibold text-slate-700 mb-1 block">Start Date *</label>
+            <input 
+              type="date" 
+              required 
+              value={formData.date}
+              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" 
+              onChange={e=>setFormData({...formData,date:e.target.value})}
+            />
+          </div>
+          <div>
+            <label className="text-sm font-semibold text-slate-700 mb-1 block">End Date</label>
+            <input 
+              type="date" 
+              value={formData.end_date}
+              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" 
+              onChange={e=>setFormData({...formData,end_date:e.target.value})}
+            />
+            <p className="text-xs text-slate-500 mt-1">Optional: for multi-day holidays</p>
+          </div>
+        </div>
+
+        {/* Holiday Type */}
+        <div>
+          <label className="text-sm font-semibold text-slate-700 mb-1 block">Holiday Type</label>
+          <select 
+            value={formData.holiday_type}
+            className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+            onChange={e=>setFormData({...formData,holiday_type:e.target.value})}
+          >
+            <option value="company">Company Holiday</option>
+            <option value="national">National Holiday</option>
+            <option value="religious">Religious Holiday</option>
+            <option value="regional">Regional Holiday</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+
+        {/* Description */}
+        <div>
+          <label className="text-sm font-semibold text-slate-700 mb-1 block">Description</label>
+          <textarea 
+            placeholder="Add any additional details..." 
+            value={formData.description}
+            rows={3}
+            className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" 
+            onChange={e=>setFormData({...formData,description:e.target.value})}
+          />
+        </div>
+
+        {/* Is Recurring */}
+        <div className="flex items-center gap-3">
+          <input 
+            type="checkbox" 
+            id="is_recurring"
+            checked={formData.is_recurring}
+            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+            onChange={e=>setFormData({...formData,is_recurring:e.target.checked})}
+          />
+          <label htmlFor="is_recurring" className="text-sm font-medium text-slate-700">
+            🔁 Recurring Holiday (repeats annually)
+          </label>
+        </div>
+
+        {/* Buttons */}
+        <div className="flex gap-3 pt-4">
+          <button 
+            type="button" 
+            onClick={onClose} 
+            className="flex-1 border py-2 rounded-lg hover:bg-gray-50 font-semibold"
+          >
+            Cancel
+          </button>
+          <button 
+            type="submit" 
+            disabled={submitting} 
+            className="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 shadow-md font-semibold disabled:opacity-50"
+          >
+            {submitting?'Adding...':'Add Holiday'}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+)
+
+// === Holiday Details Modal ===
+const HolidayDetailsModal = ({ holiday, editData, setEditData, onClose, onUpdate, onDelete }: any) => (
+  <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+    <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl p-6 relative max-h-[90vh] overflow-y-auto">
+      <button onClick={onClose} className="absolute right-4 top-4 text-slate-400 hover:text-slate-600"><X/></button>
+      
+      <h2 className="text-2xl font-bold mb-6">Edit Company Holiday</h2>
+      
+      <form onSubmit={onUpdate} className="space-y-4">
+        <div className="space-y-4 bg-slate-50 p-4 rounded-lg border border-slate-100 mb-6">
+          {/* Title */}
+          <div>
+            <label className="text-xs font-bold text-slate-500 uppercase">Title *</label>
+            <input 
+              type="text" 
+              value={editData.title} 
+              required
+              className="w-full mt-1 p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none" 
+              onChange={e=>setEditData({...editData,title:e.target.value})}
+            />
+          </div>
+
+          {/* Dates */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-bold text-slate-500 uppercase">Start Date *</label>
+              <input 
+                type="date" 
+                value={editData.date} 
+                required
+                className="w-full mt-1 p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none" 
+                onChange={e=>setEditData({...editData,date:e.target.value})}
+              />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-slate-500 uppercase">End Date</label>
+              <input 
+                type="date" 
+                value={editData.end_date} 
+                className="w-full mt-1 p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none" 
+                onChange={e=>setEditData({...editData,end_date:e.target.value})}
+              />
+              <p className="text-xs text-slate-400 mt-1">Optional: for multi-day holidays</p>
+            </div>
+          </div>
+
+          {/* Holiday Type */}
+          <div>
+            <label className="text-xs font-bold text-slate-500 uppercase">Holiday Type</label>
+            <select 
+              value={editData.holiday_type}
+              className="w-full mt-1 p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none"
+              onChange={e=>setEditData({...editData,holiday_type:e.target.value})}
+            >
+              <option value="company">Company Holiday</option>
+              <option value="national">National Holiday</option>
+              <option value="religious">Religious Holiday</option>
+              <option value="regional">Regional Holiday</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+
+          {/* Description */}
+          <div>
+            <label className="text-xs font-bold text-slate-500 uppercase">Description</label>
+            <textarea 
+              value={editData.description}
+              rows={3}
+              className="w-full mt-1 p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none"
+              onChange={e=>setEditData({...editData,description:e.target.value})}
+            />
+          </div>
+
+          {/* Is Recurring */}
+          <div className="flex items-center gap-3">
+            <input 
+              type="checkbox" 
+              id="edit_is_recurring"
+              checked={editData.is_recurring}
+              className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+              onChange={e=>setEditData({...editData,is_recurring:e.target.checked})}
+            />
+            <label htmlFor="edit_is_recurring" className="text-sm font-medium text-slate-700">
+              🔁 Recurring Holiday (repeats annually)
+            </label>
+          </div>
+
+          {/* System Info */}
+          <div className="pt-4 border-t border-slate-200 space-y-2">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase">Created By</label>
+                <p className="text-sm text-slate-600 mt-1">{holiday.created_by || 'System'}</p>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase">Created At</label>
+                <p className="text-xs text-slate-600 mt-1">{formatDateTime(holiday.created_at)}</p>
+              </div>
+            </div>
+            <div>
+              <label className="text-xs font-bold text-slate-500 uppercase">Last Updated</label>
+              <p className="text-xs text-slate-600 mt-1 font-semibold text-green-600">{formatDateTime(holiday.updated_at)}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex gap-3">
+          <button 
+            type="button"
+            onClick={()=>onDelete(holiday.id)} 
+            className="px-6 bg-slate-100 hover:bg-red-50 hover:text-red-600 text-slate-600 py-2.5 rounded-lg font-semibold flex items-center justify-center gap-2"
+          >
+            <Trash2 className="w-4 h-4"/> Delete
+          </button>
+          <button 
+            type="submit" 
+            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-lg font-semibold shadow-md"
+          >
+            💾 Save Changes
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+)

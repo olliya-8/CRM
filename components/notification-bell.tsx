@@ -165,6 +165,8 @@ export default function NotificationBell() {
         return "📋"
       case "task_completed":
         return "✔️"
+      case "task_comment":
+        return "💬"
       default:
         return "🔔"
     }
