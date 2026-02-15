@@ -13,6 +13,12 @@ interface SearchIndex {
   vacations: any[]
   employees: any[]
   infoPortal: any[]
+  documents: any[]
+  announcements: any[]
+  conversations: any[]
+  tasks: any[] // ✅ NEW
+  leaveRequests: any[] // ✅ NEW
+  companyHolidays: any[] // ✅ NEW
 }
 
 interface SearchContextType {
@@ -34,6 +40,12 @@ export function SearchProvider({ children }: { children: ReactNode }) {
     vacations: [],
     employees: [],
     infoPortal: [],
+    documents: [],
+    announcements: [],
+    conversations: [],
+    tasks: [], // ✅ NEW
+    leaveRequests: [], // ✅ NEW
+    companyHolidays: [], // ✅ NEW
   })
 
   const updateSearchIndex = useCallback((category: keyof SearchIndex, data: any[]) => {

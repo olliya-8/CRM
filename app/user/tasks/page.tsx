@@ -247,11 +247,6 @@ export default function UserDashboard() {
     setSubmittingComment(false)
   }
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut()
-    router.push("/login")
-  }
-
   if (loading) {
     return (
       <div className="flex justify-center items-center h-screen bg-gray-50">
@@ -268,24 +263,13 @@ export default function UserDashboard() {
       
       <div className="max-w-7xl mx-auto">
         {/* HEADER */}
-        <div className="flex justify-between items-center mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-800">My Tasks</h1>
-            <p className="text-gray-600 mt-1">
-              {user?.email} | Role: User
-              {unreadCount > 0 && (
-                <span className="ml-3 bg-red-100 text-red-700 px-2 py-1 rounded-full text-xs font-semibold">
-                  {unreadCount} New
-                </span>
-              )}
-            </p>
-          </div>
-          <button
-            onClick={handleLogout}
-            className="bg-red-600 text-white px-5 py-2 rounded-md hover:bg-red-700 transition"
-          >
-            Logout
-          </button>
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-800">My Tasks</h1>
+          {unreadCount > 0 && (
+            <span className="mt-2 inline-block bg-red-100 text-red-700 px-3 py-1 rounded-full text-xs font-semibold">
+              {unreadCount} New
+            </span>
+          )}
         </div>
 
         {/* TASKS BY STATUS */}

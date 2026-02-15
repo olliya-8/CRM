@@ -1,40 +1,40 @@
 'use client'
 
-import { ReactNode, useEffect, useState } from "react"
+import { ReactNode, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useUser } from "@/components/user-context"
-import UserHeader from "./header"
-import UserSidebar from "./sidebar"
+import Header from "./header"
+import Sidebar from "./sidebar"
 
 export default function UserLayout({ children }: { children: ReactNode }) {
-  const { user, loading } = useUser()
+  const { user, hydrated } = useUser()
   const router = useRouter()
-  const [authChecked, setAuthChecked] = useState(false)
 
   useEffect(() => {
-    // wait till user context is loaded
-    if (!loading) {
-      if (!user) {
-        // redirect to login if not logged in
-        router.replace("/login")
-      } else {
-        setAuthChecked(true) // user ok, render children
-      }
+    if (hydrated && !user) {
+      router.replace("/login")
     }
-  }, [user, loading, router])
+  }, [user, hydrated, router])
 
-  // show nothing / loader until auth check is done
-  if (!authChecked) return null
+  if (!hydrated) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent"></div>
+          <p className="mt-4 text-sm text-gray-600">Loading...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!user) return null
 
   return (
-    <div className="flex h-screen overflow-hidden bg-gray-50">
-      <UserSidebar />
-
-      <div className="flex-1 flex flex-col min-w-0">
-        <UserHeader />
-
-        {/* scrollable content */}
-        <main className="p-6 md:p-10 flex-1 overflow-y-auto">
+    <div className="flex h-screen overflow-hidden">
+      <Sidebar />
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <Header />
+        <main className="flex-1 overflow-auto bg-slate-50 p-6 md:p-10">
           {children}
         </main>
       </div>

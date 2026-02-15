@@ -69,7 +69,7 @@ export default function VacationsPage() {
     description: '',
     date: '',
     end_date: '',
-    holiday_type: 'company',
+    holiday_type: '',
     is_recurring: false,
   })
   const [submitting, setSubmitting] = useState(false)
@@ -79,7 +79,7 @@ export default function VacationsPage() {
     date: '',
     end_date: '',
     description: '',
-    holiday_type: 'company',
+    holiday_type: '',
     is_recurring: false
   })
 
@@ -120,7 +120,6 @@ export default function VacationsPage() {
   }
 
   const handleUpdateLeave = async (leave: LeaveRequest, status: 'approved' | 'rejected') => {
-    // Get current timestamp
     const currentTimestamp = new Date().toISOString()
     
     const { error } = await supabase
@@ -129,13 +128,12 @@ export default function VacationsPage() {
         status,
         approved_by: user?.email,
         approved_at: currentTimestamp,
-        updated_at: currentTimestamp, // Current time when admin takes action
+        updated_at: currentTimestamp,
       })
       .eq('id', leave.id)
     
     if (error) return toast.error(error.message)
 
-    // insert notification
     await supabase.from('leave_notifications').insert([{
       user_email: leave.email,
       leave_id: leave.id,
@@ -186,7 +184,6 @@ export default function VacationsPage() {
       return
     }
 
-    // Notify all users
     const { data: users } = await supabase.from('employees').select('email')
     if (users) {
       const dateRange = formData.end_date 
@@ -205,7 +202,7 @@ export default function VacationsPage() {
     toast.success('Holiday added and notifications sent! 🎉')
     fetchCompanyHolidays()
     setShowAddHolidayModal(false)
-    setFormData({ title: '', description: '', date: '', end_date: '', holiday_type: 'company', is_recurring: false })
+    setFormData({ title: '', description: '', date: '', end_date: '', holiday_type: '', is_recurring: false })
     setSubmitting(false)
   }
 
@@ -213,7 +210,6 @@ export default function VacationsPage() {
     e.preventDefault()
     if (!selectedHoliday) return
     
-    // Get current timestamp
     const currentTimestamp = new Date().toISOString()
     
     const { error } = await supabase
@@ -225,7 +221,7 @@ export default function VacationsPage() {
         description: editHoliday.description,
         holiday_type: editHoliday.holiday_type,
         is_recurring: editHoliday.is_recurring,
-        updated_at: currentTimestamp // Current time when admin updates
+        updated_at: currentTimestamp
       })
       .eq('id', selectedHoliday.id)
 
@@ -428,17 +424,13 @@ const LeaveDetailsModal = ({ leave, onClose, onUpdate, onDelete }: any) => {
           {/* Leave Type */}
           <div>
             <label className="text-xs font-bold text-slate-500 uppercase">Leave Type</label>
-            <select 
+            <input 
+              type="text" 
               value={editData.leave_type} 
-              className="w-full mt-1 p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none"
+              className="w-full mt-1 p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none" 
               onChange={e=>setEditData({...editData,leave_type:e.target.value})}
-            >
-              <option value="annual">Annual Leave</option>
-              <option value="sick">Sick Leave</option>
-              <option value="personal">Personal Leave</option>
-              <option value="unpaid">Unpaid Leave</option>
-              <option value="other">Other</option>
-            </select>
+              placeholder="e.g., Annual Leave, Sick Leave"
+            />
           </div>
 
           {/* Dates */}
@@ -547,17 +539,13 @@ const AddHolidayModal = ({ formData, setFormData, onClose, onSubmit, submitting 
         {/* Holiday Type */}
         <div>
           <label className="text-sm font-semibold text-slate-700 mb-1 block">Holiday Type</label>
-          <select 
+          <input 
+            type="text" 
+            placeholder="e.g., National Holiday, Company Event" 
             value={formData.holiday_type}
             className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
             onChange={e=>setFormData({...formData,holiday_type:e.target.value})}
-          >
-            <option value="company">Company Holiday</option>
-            <option value="national">National Holiday</option>
-            <option value="religious">Religious Holiday</option>
-            <option value="regional">Regional Holiday</option>
-            <option value="other">Other</option>
-          </select>
+          />
         </div>
 
         {/* Description */}
@@ -657,17 +645,13 @@ const HolidayDetailsModal = ({ holiday, editData, setEditData, onClose, onUpdate
           {/* Holiday Type */}
           <div>
             <label className="text-xs font-bold text-slate-500 uppercase">Holiday Type</label>
-            <select 
+            <input 
+              type="text" 
+              placeholder="e.g., National Holiday, Company Event" 
               value={editData.holiday_type}
               className="w-full mt-1 p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none"
               onChange={e=>setEditData({...editData,holiday_type:e.target.value})}
-            >
-              <option value="company">Company Holiday</option>
-              <option value="national">National Holiday</option>
-              <option value="religious">Religious Holiday</option>
-              <option value="regional">Regional Holiday</option>
-              <option value="other">Other</option>
-            </select>
+            />
           </div>
 
           {/* Description */}

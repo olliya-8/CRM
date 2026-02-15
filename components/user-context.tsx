@@ -15,7 +15,7 @@ interface UserContextType {
   isAdmin: boolean
   logout: () => void
   refreshUser: () => Promise<void>
-  hydrated: boolean // ✅ new
+  hydrated: boolean
 }
 
 export const UserContext = createContext<UserContextType | undefined>(undefined)
@@ -41,18 +41,29 @@ export function UserProvider({ children }: { children: ReactNode }) {
         const role = profileData?.role || "user"
         const u = { id: userId, name, email, role }
         setUser(u)
-        localStorage.setItem("user", JSON.stringify(u))
+        
+        // ✅ Check if we're in the browser before using localStorage
+        if (typeof window !== "undefined") {
+          localStorage.setItem("user", JSON.stringify(u))
+        }
       } else {
-        // fallback to localStorage
-        const savedUser = localStorage.getItem("user")
-        if (savedUser) setUser(JSON.parse(savedUser))
-        else setUser(null)
+        // ✅ Only access localStorage in the browser
+        if (typeof window !== "undefined") {
+          const savedUser = localStorage.getItem("user")
+          if (savedUser) {
+            setUser(JSON.parse(savedUser))
+          } else {
+            setUser(null)
+          }
+        } else {
+          setUser(null)
+        }
       }
     } catch (err) {
       console.error("Error refreshing user:", err)
       setUser(null)
     } finally {
-      setHydrated(true) // ✅ mark as hydrated
+      setHydrated(true)
     }
   }
 
@@ -63,7 +74,11 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     await supabase.auth.signOut()
     setUser(null)
-    localStorage.removeItem("user")
+    
+    // ✅ Check if we're in the browser before using localStorage
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("user")
+    }
   }
 
   return (
@@ -73,7 +88,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
         isAdmin: user?.role === "admin" || false,
         logout,
         refreshUser,
-        hydrated, // ✅ expose hydrated
+        hydrated,
       }}
     >
       {children}

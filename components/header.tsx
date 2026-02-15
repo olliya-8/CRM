@@ -77,7 +77,10 @@ export default function Header({ onLogout }: { onLogout?: () => void }) {
               'activities': '/dashboard',
               'documents': '/info-portal-page',
               'announcements': '/info-portal-page',
-              'conversations': '/dashboard'
+              'conversations': '/dashboard',
+              'tasks': '/tasks-page', // ✅ Added
+              'leaveRequests': '/vacations-page', // ✅ Added
+              'companyHolidays': '/vacations-page' // ✅ Added
             }
             path = categoryPageMap[category] || '/dashboard'
           }
@@ -274,7 +277,7 @@ export default function Header({ onLogout }: { onLogout?: () => void }) {
                   <Search className="h-6 w-6 text-slate-400" />
                 </div>
                 <p className="mt-4 font-medium text-slate-900">Start typing to search</p>
-                <p className="mt-1 text-sm text-slate-500">Search employees, projects, and more</p>
+                <p className="mt-1 text-sm text-slate-500">Search employees, projects, tasks, and more</p>
               </div>
             )}
           </div>

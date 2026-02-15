@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useUser } from "@/components/user-context"
 import { supabase } from "@/lib/supabase"
+import { ClipboardList, FileText } from "lucide-react"
 
 export default function UserDashboardPage() {
   const router = useRouter()
@@ -45,33 +46,45 @@ export default function UserDashboardPage() {
   }
 
   return (
-    /* Added overflow-y-auto and min-h-full to ensure it fills the space and scrolls */
-    <div className="w-full min-h-full overflow-y-auto bg-gray-50 p-6 md:p-10">
+    <div className="w-full min-h-full overflow-y-auto bg-slate-50 p-4 sm:p-6 md:p-10">
       <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl font-bold text-gray-800 mb-4">
-          Welcome, {employeeData?.name || user?.email}!
-        </h1>
-        <p className="text-gray-600 mb-8">
-          Role: User | Email: {user?.email}
-        </p>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="bg-white p-6 rounded shadow border border-gray-200">
-            <h2 className="text-xl font-semibold mb-3 text-gray-800">My Tasks</h2>
-            <p className="text-gray-500">Tasks assigned by your manager will appear here.</p>
-          </div>
-          <div className="bg-white p-6 rounded shadow border border-gray-200">
-            <h2 className="text-xl font-semibold mb-3 text-gray-800">Leave Requests</h2>
-            <p className="text-gray-500">Your submitted leave requests and their status will appear here.</p>
-          </div>
+        {/* Welcome Message */}
+        <div className="mb-8 sm:mb-12">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-800 mb-2">
+            Welcome, {employeeData?.name || user?.email}!
+          </h1>
           
-          {/* Spacer to demonstrate scrolling if content is short */}
-          <div className="h-64 bg-gray-100/50 border-dashed border-2 border-gray-200 rounded flex items-center justify-center text-gray-400">
-            Future Dashboard Widget
-          </div>
-          <div className="h-64 bg-gray-100/50 border-dashed border-2 border-gray-200 rounded flex items-center justify-center text-gray-400">
-            Recent Activity
-          </div>
+        </div>
+
+        {/* Two Cards - My Tasks and Leave Requests */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+          {/* My Tasks Card */}
+          <button
+            onClick={() => router.push("/user/tasks")}
+            className="bg-white p-6 sm:p-8 rounded-xl shadow-sm border border-slate-200 hover:shadow-md hover:border-blue-300 transition-all duration-200 text-left group"
+          >
+            <div className="flex items-center gap-4 mb-4">
+              
+              <h2 className="text-xl sm:text-2xl font-semibold text-gray-800">My Tasks</h2>
+            </div>
+            <p className="text-sm sm:text-base text-gray-500">
+              Tasks assigned by your manager will appear here.
+            </p>
+          </button>
+
+          {/* Leave Requests Card */}
+          <button
+            onClick={() => router.push("/user/submit-leave")}
+            className="bg-white p-6 sm:p-8 rounded-xl shadow-sm border border-slate-200 hover:shadow-md hover:border-blue-300 transition-all duration-200 text-left group"
+          >
+            <div className="flex items-center gap-4 mb-4">
+              
+              <h2 className="text-xl sm:text-2xl font-semibold text-gray-800">Leave Requests</h2>
+            </div>
+            <p className="text-sm sm:text-base text-gray-500">
+              Your submitted leave requests and their status will appear here.
+            </p>
+          </button>
         </div>
       </div>
     </div>

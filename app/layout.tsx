@@ -2,9 +2,8 @@
 
 import type React from "react"
 import { useState, useEffect } from "react"
-import { Geist, Geist_Mono } from "next/font/google"
-import { Analytics } from "@vercel/analytics/next"
 import { usePathname } from "next/navigation"
+import { Analytics } from "@vercel/analytics/next"
 import "./globals.css"
 
 import { UserProvider, useUser } from "@/components/user-context"
@@ -12,9 +11,6 @@ import { SearchProvider } from "@/components/contexts/SearchContext"
 import Sidebar from "@/components/sidebar"
 import Header from "@/components/header"
 import GlobalSearchLoader from "@/components/GlobalSearchLoader"
-
-const geist = Geist({ subsets: ["latin"] })
-const geistMono = Geist_Mono({ subsets: ["latin"] })
 
 function LayoutWrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()

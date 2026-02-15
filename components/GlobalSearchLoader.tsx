@@ -22,6 +22,7 @@ export default function GlobalSearchLoader() {
         { name: 'Vacations', path: '/vacations-page', title: 'Vacations' },
         { name: 'Employees', path: '/employees-page', title: 'Employees' },
         { name: 'Info Portal', path: '/info-portal-page', title: 'Info Portal' },
+        { name: 'Tasks Management', path: '/tasks-page', title: 'Tasks Management' }, // ✅ Added
       ]
       updateSearchIndex('navigation', navigationItems)
 
@@ -113,7 +114,7 @@ export default function GlobalSearchLoader() {
         )
       }
 
-      // 5️⃣ Load vacations
+      // 5️⃣ Load vacations - ✅ UPDATED
       const { data: vacations } = await supabase
         .from('vacations')
         .select('*')
@@ -131,6 +132,55 @@ export default function GlobalSearchLoader() {
             status: v.status,
             title: v.user_id,
             subtitle: `${v.reason} • ${v.start_date} to ${v.end_date}`,
+            path: '/vacations-page'
+          }))
+        )
+      }
+
+      // 5️⃣b Load leave_requests - ✅ NEW
+      const { data: leaveRequests } = await supabase
+        .from('leave_requests')
+        .select('*')
+        .order('created_at', { ascending: false })
+
+      if (leaveRequests) {
+        updateSearchIndex(
+          'leaveRequests',
+          leaveRequests.map(lr => ({
+            id: lr.id,
+            employee_name: lr.employee_name,
+            email: lr.email,
+            leave_type: lr.leave_type,
+            start_date: lr.start_date,
+            end_date: lr.end_date,
+            status: lr.status,
+            reason: lr.reason,
+            title: `${lr.employee_name} - ${lr.leave_type}`,
+            subtitle: `${lr.status} • ${lr.start_date} to ${lr.end_date}`,
+            path: '/vacations-page'
+          }))
+        )
+      }
+
+      // 5️⃣c Load company_holidays - ✅ NEW
+      const { data: companyHolidays } = await supabase
+        .from('company_holidays')
+        .select('*')
+        .order('date', { ascending: true })
+
+      if (companyHolidays) {
+        updateSearchIndex(
+          'companyHolidays',
+          companyHolidays.map(ch => ({
+            id: ch.id,
+            title: ch.title,
+            date: ch.date,
+            end_date: ch.end_date,
+            holiday_type: ch.holiday_type,
+            description: ch.description,
+            is_recurring: ch.is_recurring,
+            subtitle: `${ch.holiday_type} • ${ch.date}${ch.end_date ? ` to ${ch.end_date}` : ''}`,
+            path: '/vacations-page'
           }))
         )
       }
@@ -211,6 +261,31 @@ export default function GlobalSearchLoader() {
             time: c.time,
             unread: c.unread,
             subtitle: `${c.last_message} • ${c.time}`,
+          }))
+        )
+      }
+
+      // 🔟 Load tasks - ✅ NEW
+      const { data: tasks } = await supabase
+        .from('tasks')
+        .select('*')
+        .order('created_at', { ascending: false })
+
+      if (tasks) {
+        updateSearchIndex(
+          'tasks',
+          tasks.map(t => ({
+            id: t.id,
+            title: t.title,
+            description: t.description,
+            assigned_to_email: t.assigned_to_email,
+            assigned_to_name: t.assigned_to_name,
+            assigned_by_name: t.assigned_by_name,
+            priority: t.priority,
+            status: t.status,
+            due_date: t.due_date,
+            subtitle: `${t.status} • Priority: ${t.priority} • Assigned to: ${t.assigned_to_name || t.assigned_to_email}`,
+            path: '/tasks-page'
           }))
         )
       }
