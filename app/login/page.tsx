@@ -26,56 +26,39 @@ export default function LoginPage() {
     setError("")
 
     try {
+      // Step 1: Sign in
       const { data, error: authError } = await supabase.auth.signInWithPassword({
-        email,
+        email: email.trim().toLowerCase(),
         password,
       })
 
       if (authError || !data.user) {
         setError(authError?.message || "Invalid credentials")
+        setLoading(false)
         return
       }
 
-      const authUser = data.user
-
-      let { data: profile, error: profileError } = await supabase
-        .from("users")
-        .select("id, name, email, role")
-        .eq("email", authUser.email)
+      // Step 2: Get role from employees table
+      const { data: employee } = await supabase
+        .from("employees")
+        .select("role")
+        .eq("email", data.user.email)
         .single()
 
-      // If user profile not found, create a new one
-      if (profileError || !profile) {
-        const { data: newProfile, error: insertError } = await supabase
-          .from("users")
-          .insert({
-            id: authUser.id,
-            name: authUser.user_metadata?.full_name || "No Name",
-            email: authUser.email,
-            role: "user",
-          })
-          .select()
-          .single()
-
-        if (insertError || !newProfile) {
-          setError("Failed to create user profile")
-          return
-        }
-
-        profile = newProfile
+      // Step 3: Refresh user context
+      if (refreshUser) {
+        await refreshUser()
       }
 
-      await refreshUser() // update user context
-
-      // Redirect based on role
-      if (profile.role === "admin") {
+      // Step 4: Redirect based on role
+      if (employee?.role === "admin") {
         router.push("/dashboard")
       } else {
         router.push("/user")
       }
     } catch (err: any) {
       console.error("Login error:", err)
-      setError(err.message || "Something went wrong")
+      setError("Login failed. Please try again.")
     } finally {
       setLoading(false)
     }
@@ -84,7 +67,7 @@ export default function LoginPage() {
   return (
     <div className="flex h-screen overflow-hidden bg-[#F4F9FD] lg:px-10 lg:py-5">
       {/* LEFT SIDE */}
-      <div className="hidden lg:flex lg:w-1/2 rounded-l-2xl bg-linear-to-br from-blue-500 to-blue-600 px-[94px] py-[60px]">
+      <div className="hidden lg:flex lg:w-1/2 rounded-l-2xl bg-gradient-to-br from-blue-500 to-blue-600 px-[94px] py-[60px]">
         <div className="w-full max-w-xl text-white flex flex-col gap-[50px] justify-center">
           <div className="flex items-center gap-2">
             <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center">

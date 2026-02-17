@@ -78,9 +78,9 @@ export default function Header({ onLogout }: { onLogout?: () => void }) {
               'documents': '/info-portal-page',
               'announcements': '/info-portal-page',
               'conversations': '/dashboard',
-              'tasks': '/tasks-page', // ✅ Added
-              'leaveRequests': '/vacations-page', // ✅ Added
-              'companyHolidays': '/vacations-page' // ✅ Added
+              'tasks': '/tasks-page',
+              'leaveRequests': '/vacations-page',
+              'companyHolidays': '/vacations-page'
             }
             path = categoryPageMap[category] || '/dashboard'
           }
@@ -106,6 +106,12 @@ export default function Header({ onLogout }: { onLogout?: () => void }) {
       setShowSearchResults(false)
       setIsMobileSearchOpen(false)
     }
+  }
+
+  const handleSignOut = async () => {
+    await logout()
+    onLogout?.()
+    router.push('/login')
   }
 
   return (
@@ -198,10 +204,7 @@ export default function Header({ onLogout }: { onLogout?: () => void }) {
                       Settings
                     </Link>
                     <button
-                      onClick={() => {
-                        logout()
-                        onLogout?.()
-                      }}
+                      onClick={handleSignOut}
                       className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm text-red-600 transition-colors hover:bg-red-50"
                     >
                       <LogOut className="h-4 w-4" />

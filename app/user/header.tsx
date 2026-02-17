@@ -99,7 +99,6 @@ export default function Header() {
       if (!user?.email) return
 
       try {
-        // Search Tasks
         const { data: tasks } = await supabase
           .from('tasks')
           .select('id, title, description, status')
@@ -117,7 +116,6 @@ export default function Header() {
           })
         })
 
-        // Search Leave Requests
         const { data: leaves } = await supabase
           .from('leave_requests')
           .select('id, leave_type, start_date, end_date, status')
@@ -135,7 +133,6 @@ export default function Header() {
           })
         })
 
-        // Search Company Holidays
         const { data: holidays } = await supabase
           .from('company_holidays')
           .select('id, title, date')
@@ -263,7 +260,6 @@ export default function Header() {
                 className="h-10 w-full rounded-lg border border-slate-200 bg-slate-50/50 pl-10 pr-4 text-sm transition-all placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100"
               />
               
-              {/* Desktop Search Results */}
               {showSearchResults && searchResults.length > 0 && (
                 <div className="absolute left-0 right-0 top-full z-50 mt-2 max-h-96 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-xl">
                   {searchResults.map((result) => (
@@ -368,16 +364,19 @@ export default function Header() {
                     {employeeName?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || "U"}
                   </AvatarFallback>
                 </Avatar>
+                
+                {/* FIXED THIS LINE BELOW: Split removed to show full email */}
                 <span className="hidden text-sm font-medium text-slate-700 sm:inline-block">
-                  {employeeName || user?.name || user?.email?.split('@')[0]}
+                  {employeeName || user?.email}
                 </span>
+                
                 <ChevronDown className="hidden h-4 w-4 text-slate-400 sm:block" />
               </button>
 
               {showUserMenu && (
                 <div className="absolute right-0 top-full z-50 mt-2 w-64 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xl">
                   <div className="border-b border-slate-100 bg-slate-50 px-4 py-3">
-                    <p className="truncate font-semibold text-slate-900">{employeeName}</p>
+                    <p className="truncate font-semibold text-slate-900">{employeeName || "User"}</p>
                     <p className="truncate text-xs text-slate-500">{user?.email}</p>
                     <span className="mt-1 inline-block rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
                       User
@@ -458,21 +457,14 @@ export default function Header() {
                   </button>
                 ))}
               </div>
-            ) : searchQuery.trim().length >= 2 ? (
-              <div className="flex flex-col items-center justify-center py-12 text-center">
-                <div className="rounded-full bg-slate-100 p-3">
-                  <Search className="h-6 w-6 text-slate-400" />
-                </div>
-                <p className="mt-4 font-medium text-slate-900">No results found</p>
-                <p className="mt-1 text-sm text-slate-500">Try a different search term</p>
-              </div>
             ) : (
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <div className="rounded-full bg-slate-100 p-3">
                   <Search className="h-6 w-6 text-slate-400" />
                 </div>
-                <p className="mt-4 font-medium text-slate-900">Start typing to search</p>
-                <p className="mt-1 text-sm text-slate-500">Search your tasks and leaves</p>
+                <p className="mt-4 font-medium text-slate-900">
+                  {searchQuery.trim().length >= 2 ? "No results found" : "Start typing to search"}
+                </p>
               </div>
             )}
           </div>

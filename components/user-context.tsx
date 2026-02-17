@@ -27,10 +27,13 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const refreshUser = async () => {
     try {
       const { data: { session } } = await supabase.auth.getSession()
+
       if (session?.user) {
         const userId = session.user.id
         const email = session.user.email || "No Email"
-        const name = (session.user.user_metadata as any)?.name || email
+
+        // ✅ Always use full email as display name
+        const name = email
 
         const { data: profileData } = await supabase
           .from("profiles")
@@ -39,15 +42,20 @@ export function UserProvider({ children }: { children: ReactNode }) {
           .single()
 
         const role = profileData?.role || "user"
-        const u = { id: userId, name, email, role }
+
+        const u: User = {
+          id: userId,
+          name,
+          email,
+          role,
+        }
+
         setUser(u)
-        
-        // ✅ Check if we're in the browser before using localStorage
+
         if (typeof window !== "undefined") {
           localStorage.setItem("user", JSON.stringify(u))
         }
       } else {
-        // ✅ Only access localStorage in the browser
         if (typeof window !== "undefined") {
           const savedUser = localStorage.getItem("user")
           if (savedUser) {
@@ -74,8 +82,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     await supabase.auth.signOut()
     setUser(null)
-    
-    // ✅ Check if we're in the browser before using localStorage
+
     if (typeof window !== "undefined") {
       localStorage.removeItem("user")
     }

@@ -7,11 +7,9 @@ import Link from "next/link";
 import { FaEye, FaEyeSlash } from "react-icons/fa";
 import BGV from "@/assets/bgv.png";
 import { supabase } from "@/lib/supabase";
-import { useUser } from "@/components/user-context";
 
 export default function SignUpPage() {
   const router = useRouter();
-  const { setUser } = useUser();
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -43,11 +41,14 @@ export default function SignUpPage() {
     }
 
     try {
+      // The trigger will automatically create records in users and employees tables
       const { data, error: signUpError } = await supabase.auth.signUp({
-        email,
+        email: email.trim().toLowerCase(),
         password,
         options: {
-          data: { name },
+          data: { 
+            name: name.trim() || email.split("@")[0]
+          },
         },
       });
 
@@ -58,27 +59,21 @@ export default function SignUpPage() {
       }
 
       if (data.user && !data.session) {
-        setSuccess(
-          "Sign up successful! Please check your email to confirm your account."
-        );
+        setCurrentStep(2);
+        setSuccess("Sign up successful! Please check your email to confirm your account.");
         setLoading(false);
         setTimeout(() => router.push("/login"), 3000);
         return;
       }
 
       if (data.user && data.session) {
-        setUser({
-          id: data.user.id,
-          name: name || data.user.email?.split("@")[0] || "User",
-          email: data.user.email || "",
-          role: "user",
-        });
-
+        setCurrentStep(3);
         setSuccess("Account created successfully! Redirecting...");
         setTimeout(() => router.push("/user"), 1500);
       }
-    } catch {
-      setError("Something went wrong. Please try again.");
+    } catch (err: any) {
+      console.error("Signup error:", err);
+      setError(err.message || "Something went wrong. Please try again.");
       setLoading(false);
     }
   };
@@ -133,7 +128,7 @@ export default function SignUpPage() {
                 pt-2 sm:pt-2 lg:pt-0 lg:justify-center">
 
         <div className="w-full max-w-md">
-          {/* ✅ MOBILE LOGO FIXED */}
+          {/* MOBILE LOGO */}
           <div className="lg:hidden flex flex-col items-center gap-3 mb-8 pt-14">
             <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-white ring-1-white shadow-sm">
               <Image
